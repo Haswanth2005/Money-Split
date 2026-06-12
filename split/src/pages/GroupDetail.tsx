@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../supabaseClient'
 import { useAuth } from '../contexts/AuthContext'
 import { formatCurrency, formatDate, getGroupTypeIcon, getInitials, getBalanceClass } from '../utils/formatters'
@@ -37,7 +37,6 @@ export function GroupDetail() {
   const navigate = useNavigate()
   const [tab, setTab] = useState<'expenses' | 'balances'>('expenses')
   const [simplifyMode, setSimplifyMode] = useState(true)
-  const qc = useQueryClient()
 
   const { data, isLoading } = useQuery({
     queryKey: ['group', id],
@@ -132,7 +131,6 @@ export function GroupDetail() {
             simplifyMode={simplifyMode}
             setSimplifyMode={setSimplifyMode}
             groupId={id!}
-            members={members}
             userId={user!.id}
           />
         )}
@@ -205,7 +203,7 @@ function ExpensesTab({ expenses, groupId, userId }: { expenses: Expense[]; group
 }
 
 function BalancesTab({
-  netBalances, simplified, simplifyMode, setSimplifyMode, groupId, members, userId
+  netBalances, simplified, simplifyMode, setSimplifyMode, groupId, userId
 }: any) {
   const myBalance = netBalances.find((b: any) => b.userId === userId)
 
@@ -218,9 +216,9 @@ function BalancesTab({
             Your balance in this group
           </p>
           <span className={getBalanceClass(myBalance.balance)} style={{ fontSize: 18, fontWeight: 700 }}>
-            {myBalance.balance === 0 ? 'Settled up ✓' : myBalance.balance > 0
+            {Math.abs(myBalance.balance) < 0.005 ? 'Settled up ✓' : myBalance.balance > 0
               ? `+${formatCurrency(myBalance.balance)} owed to you`
-              : `${formatCurrency(myBalance.balance)} you owe`}
+              : `${formatCurrency(Math.abs(myBalance.balance))} you owe`}
           </span>
         </div>
       )}

@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../supabaseClient'
 import { useAuth } from '../contexts/AuthContext'
-import { formatCurrency, getBalanceClass, getGroupTypeIcon, getInitials, formatDate } from '../utils/formatters'
+import { formatCurrency, getBalanceClass, getGroupTypeIcon, formatDate } from '../utils/formatters'
 import { Plus, Users, TrendingUp, TrendingDown, ArrowRight } from 'lucide-react'
 import type { Group } from '../types'
 
@@ -23,8 +23,7 @@ async function fetchDashboardData(userId: string): Promise<DashboardBalance> {
     return { totalOwed: 0, totalOwing: 0, groups: [] }
   }
 
-  const groupIds = memberRows.map((r) => r.group_id)
-  const groupsRaw = memberRows.map((r) => r.groups as Group | null).filter(Boolean) as Group[]
+  const groupsRaw = memberRows.map((r) => (r.groups as any) as Group | null).filter(Boolean) as Group[]
 
   // For each group compute user's net balance
   const groupsWithBalance = await Promise.all(groupsRaw.map(async (g) => {
@@ -206,7 +205,6 @@ function SummaryCard({ label, amount, type, icon, loading }: {
   loading: boolean
 }) {
   const color = type === 'positive' ? 'var(--color-success)' : 'var(--color-error)'
-  const bg = type === 'positive' ? 'var(--color-success-bg)' : 'var(--color-error-bg)'
 
   return (
     <div className="card" style={{ padding: '20px 24px' }}>

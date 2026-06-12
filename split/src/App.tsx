@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, NavLink, useLocation } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, NavLink } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ThemeProvider } from './contexts/ThemeContext'
@@ -19,7 +19,6 @@ import { InviteAccept } from './pages/InviteAccept'
 import { getInitials } from './utils/formatters'
 import {
   LayoutDashboard,
-  Users,
   Settings,
   LogOut,
   Plus,
@@ -121,7 +120,9 @@ function AppShell({ children }: { children: React.ReactNode }) {
     <div className="app-shell">
       <Sidebar />
       <main className="main-content">
-        {children}
+        <div className="main-content-container">
+          {children}
+        </div>
       </main>
       <MobileBottomNav />
     </div>

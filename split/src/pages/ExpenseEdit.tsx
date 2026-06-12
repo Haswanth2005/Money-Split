@@ -66,7 +66,6 @@ export function ExpenseEdit() {
   }, [expense, members.length])
 
   const included = participants.filter((p) => p.included)
-  const totalAssigned = included.reduce((s, p) => s + p.value, 0)
 
   const onSubmit = async () => {
     if (!user) return

@@ -135,16 +135,9 @@ $$ language plpgsql;
 -- 12a. Users
 alter table public.users enable row level security;
 
-create policy "Users are viewable by group members or self"
+create policy "Users are viewable by authenticated users"
   on public.users for select
-  using (
-    id = auth.uid() or
-    exists (
-      select 1 from public.group_members gm1
-      join public.group_members gm2 on gm1.group_id = gm2.group_id
-      where gm1.user_id = auth.uid() and gm2.user_id = public.users.id
-    )
-  );
+  using (auth.role() = 'authenticated');
 
 create policy "Users can update their own profile"
   on public.users for update
@@ -155,7 +148,7 @@ alter table public.groups enable row level security;
 
 create policy "Groups are viewable by members"
   on public.groups for select
-  using (public.is_group_member(id, auth.uid()));
+  using (public.is_group_member(id, auth.uid()) or created_by = auth.uid());
 
 create policy "Authenticated users can create groups"
   on public.groups for insert

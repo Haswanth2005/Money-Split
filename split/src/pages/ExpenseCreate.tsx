@@ -16,7 +16,7 @@ import type { SplitMechanism, GroupMember } from '../types'
 
 const schema = z.object({
   description: z.string().min(1, 'Description is required').max(200),
-  amount: z.coerce.number().positive('Amount must be positive'),
+  amount: z.number().positive('Amount must be positive'),
   paid_by: z.string().min(1, 'Select who paid'),
   split_type: z.enum(['equal', 'exact', 'percentage', 'shares']),
   date: z.string().min(1),
@@ -61,7 +61,6 @@ export function ExpenseCreate() {
 
   const splitType = watch('split_type') as SplitMechanism
   const amount = watch('amount') || 0
-  const paidBy = watch('paid_by')
 
   // Participants state — default all members included
   const [participants, setParticipants] = useState<ParticipantSplit[]>([])
@@ -186,7 +185,7 @@ export function ExpenseCreate() {
                 <label className="form-label" htmlFor="expense-amount">Amount (₹)</label>
                 <input id="expense-amount" type="number" min="0.01" step="0.01"
                   className={`input mono ${errors.amount ? 'input-error' : ''}`}
-                  placeholder="0.00" {...register('amount')} />
+                  placeholder="0.00" {...register('amount', { valueAsNumber: true })} />
                 {errors.amount && <p className="form-error">{errors.amount.message}</p>}
               </div>
               <div>
@@ -272,7 +271,7 @@ export function ExpenseCreate() {
                           onChange={(e) => updateParticipant(p.userId, 'value', +e.target.value)}
                           style={{ width: 80, padding: '6px 10px', borderRadius: 6, border: '1px solid var(--color-hairline)', fontSize: 14, textAlign: 'right', fontFamily: 'var(--font-mono)' }}
                         />
-                        {splitType === 'equal' ? null : splitType === 'shares' && amount > 0 && includedCount > 0 ? (
+                        {splitType === 'shares' && amount > 0 && includedCount > 0 ? (
                           <span style={{ fontSize: 12, color: 'var(--color-muted)', width: 60, textAlign: 'right' }}>
                             {formatCurrency((p.value / participants.filter(pp => pp.included).reduce((s, pp) => s + pp.value, 0)) * amount)}
                           </span>

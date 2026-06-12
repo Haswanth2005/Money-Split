@@ -5,7 +5,6 @@ import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { supabase } from '../supabaseClient'
 import { useAuth } from '../contexts/AuthContext'
-import { useTheme } from '../contexts/ThemeContext'
 import { getInitials } from '../utils/formatters'
 import { UserCircle2, Sun, Moon } from 'lucide-react'
 
@@ -69,68 +68,76 @@ export function AccountSettings() {
         </div>
       </div>
 
-      <div className="page-body" style={{ maxWidth: 520 }}>
-        {/* Avatar */}
-        <div className="card" style={{ marginBottom: 20, padding: '24px 28px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
-            <div className="avatar avatar-lg" style={{ background: 'var(--color-primary)', color: '#fff', fontSize: 20 }}>
-              {profile ? getInitials(profile.full_name) : <UserCircle2 size={24} />}
+      <div className="page-body">
+        <div className="settings-grid">
+          {/* Left Column: Profile & Password */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {/* Avatar / Profile info */}
+            <div className="card" style={{ padding: '24px 28px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
+                <div className="avatar avatar-lg" style={{ background: 'var(--color-primary)', color: '#fff', fontSize: 20 }}>
+                  {profile ? getInitials(profile.full_name) : <UserCircle2 size={24} />}
+                </div>
+                <div>
+                  <p className="title-sm">{profile?.full_name || '…'}</p>
+                  <p className="caption">{profile?.email}</p>
+                </div>
+              </div>
+
+              <h2 className="title-sm" style={{ marginBottom: 16 }}>Display name</h2>
+              <form onSubmit={profileForm.handleSubmit(onProfileSave)}>
+                <div style={{ marginBottom: 16 }}>
+                  <label className="form-label" htmlFor="account-name">Full name</label>
+                  <input id="account-name" type="text" className="input" {...profileForm.register('full_name')} />
+                  {profileForm.formState.errors.full_name && (
+                    <p className="form-error">{profileForm.formState.errors.full_name.message}</p>
+                  )}
+                </div>
+                <button type="submit" className="btn btn-secondary" disabled={profileForm.formState.isSubmitting}>
+                  {profileForm.formState.isSubmitting ? 'Saving…' : 'Save name'}
+                </button>
+              </form>
             </div>
-            <div>
-              <p className="title-sm">{profile?.full_name || '…'}</p>
-              <p className="caption">{profile?.email}</p>
+
+            {/* Password */}
+            <div className="card">
+              <h2 className="title-sm" style={{ marginBottom: 16 }}>Change password</h2>
+              <form onSubmit={passwordForm.handleSubmit(onPasswordChange)}>
+                <div style={{ marginBottom: 16 }}>
+                  <label className="form-label" htmlFor="account-pw">New password</label>
+                  <input id="account-pw" type="password" className="input" placeholder="At least 8 characters" {...passwordForm.register('password')} />
+                  {passwordForm.formState.errors.password && (
+                    <p className="form-error">{passwordForm.formState.errors.password.message}</p>
+                  )}
+                </div>
+                <div style={{ marginBottom: 16 }}>
+                  <label className="form-label" htmlFor="account-pw-confirm">Confirm password</label>
+                  <input id="account-pw-confirm" type="password" className="input" placeholder="Re-enter password" {...passwordForm.register('confirm')} />
+                  {passwordForm.formState.errors.confirm && (
+                    <p className="form-error">{passwordForm.formState.errors.confirm.message}</p>
+                  )}
+                </div>
+                <button type="submit" className="btn btn-secondary" disabled={passwordForm.formState.isSubmitting}>
+                  {passwordForm.formState.isSubmitting ? 'Updating…' : 'Change password'}
+                </button>
+              </form>
             </div>
           </div>
 
-          <h2 className="title-sm" style={{ marginBottom: 16 }}>Display name</h2>
-          <form onSubmit={profileForm.handleSubmit(onProfileSave)}>
-            <div style={{ marginBottom: 16 }}>
-              <label className="form-label" htmlFor="account-name">Full name</label>
-              <input id="account-name" type="text" className="input" {...profileForm.register('full_name')} />
-              {profileForm.formState.errors.full_name && (
-                <p className="form-error">{profileForm.formState.errors.full_name.message}</p>
-              )}
-            </div>
-            <button type="submit" className="btn btn-secondary" disabled={profileForm.formState.isSubmitting}>
-              {profileForm.formState.isSubmitting ? 'Saving…' : 'Save name'}
-            </button>
-          </form>
-        </div>
+          {/* Right Column: Appearance & Session */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {/* Appearance */}
+            <AppearanceCard />
 
-        {/* Password */}
-        <div className="card" style={{ marginBottom: 20 }}>
-          <h2 className="title-sm" style={{ marginBottom: 16 }}>Change password</h2>
-          <form onSubmit={passwordForm.handleSubmit(onPasswordChange)}>
-            <div style={{ marginBottom: 16 }}>
-              <label className="form-label" htmlFor="account-pw">New password</label>
-              <input id="account-pw" type="password" className="input" placeholder="At least 8 characters" {...passwordForm.register('password')} />
-              {passwordForm.formState.errors.password && (
-                <p className="form-error">{passwordForm.formState.errors.password.message}</p>
-              )}
+            {/* Sign out */}
+            <div className="card">
+              <h2 className="title-sm" style={{ marginBottom: 8 }}>Session</h2>
+              <p className="body-sm text-muted" style={{ marginBottom: 16 }}>
+                Sign out of your account on this device.
+              </p>
+              <button onClick={signOut} className="btn btn-danger">Sign out</button>
             </div>
-            <div style={{ marginBottom: 16 }}>
-              <label className="form-label" htmlFor="account-pw-confirm">Confirm password</label>
-              <input id="account-pw-confirm" type="password" className="input" placeholder="Re-enter password" {...passwordForm.register('confirm')} />
-              {passwordForm.formState.errors.confirm && (
-                <p className="form-error">{passwordForm.formState.errors.confirm.message}</p>
-              )}
-            </div>
-            <button type="submit" className="btn btn-secondary" disabled={passwordForm.formState.isSubmitting}>
-              {passwordForm.formState.isSubmitting ? 'Updating…' : 'Change password'}
-            </button>
-          </form>
-        </div>
-
-        {/* Appearance */}
-        <AppearanceCard />
-
-        {/* Sign out */}
-        <div className="card">
-          <h2 className="title-sm" style={{ marginBottom: 8 }}>Session</h2>
-          <p className="body-sm text-muted" style={{ marginBottom: 16 }}>
-            Sign out of your account on this device.
-          </p>
-          <button onClick={signOut} className="btn btn-danger">Sign out</button>
+          </div>
         </div>
       </div>
 
@@ -141,7 +148,6 @@ export function AccountSettings() {
 
 // ─── Appearance Card ──────────────────────────────────────────────────────────
 function AppearanceCard() {
-  const { theme, toggleTheme } = useTheme()
   const [localTheme, setLocalTheme] = useState<'light' | 'dark' | 'system'>(() => {
     const stored = localStorage.getItem('splitapp-theme')
     if (!stored) return 'system'

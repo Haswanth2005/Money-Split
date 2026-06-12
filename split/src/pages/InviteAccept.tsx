@@ -34,7 +34,7 @@ export function InviteAccept() {
         return
       }
 
-      const groupData = data.groups as { name: string } | null
+      const groupData = (data.groups as any) as { name: string } | null
       setGroupName(groupData?.name || 'this group')
       setStatus('valid')
 
