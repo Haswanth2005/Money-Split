@@ -46,6 +46,7 @@ export interface Expense {
   created_at: string
   updated_at: string
   deleted_at: string | null
+  items?: any[] | null
   // Joined
   payer?: User
   splits?: ExpenseSplit[]

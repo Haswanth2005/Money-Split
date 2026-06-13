@@ -172,6 +172,29 @@ export function ExpenseDetail() {
           </div>
         </div>
 
+        {/* Itemized Bill list if it was scanned */}
+        {expense.items && Array.isArray(expense.items) && expense.items.length > 0 && (
+          <div className="card" style={{ marginBottom: 20 }}>
+            <h2 className="title-sm" style={{ marginBottom: 16 }}>Items bought</h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {expense.items.map((item: any, idx: number) => (
+                <div key={idx} style={{
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  padding: '10px 0', borderBottom: '1px solid var(--color-hairline-soft)'
+                }}>
+                  <div>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-ink)' }}>{item.name}</p>
+                    <p className="caption">Qty: {item.quantity} × {formatCurrency(item.unitPrice)}</p>
+                  </div>
+                  <p className="mono" style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-ink)' }}>
+                    {formatCurrency(item.total)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Splits */}
         <div className="card" style={{ marginBottom: 20 }}>
           <h2 className="title-sm" style={{ marginBottom: 16 }}>Split breakdown</h2>

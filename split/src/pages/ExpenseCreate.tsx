@@ -44,6 +44,7 @@ export function ExpenseCreate() {
   const [scannedBill, setScannedBill] = useState<{ merchant: string; items: any[]; tax: number; grandTotal: number } | null>(null)
   const [scanError, setScanError] = useState('')
   const [itemShares, setItemShares] = useState<Record<number, string[]>>({})
+  const [appliedItems, setAppliedItems] = useState<any[] | null>(null)
 
   const { data: members = [] } = useQuery({
     queryKey: ['group-members', groupId],
@@ -135,6 +136,7 @@ export function ExpenseCreate() {
       split_type: values.split_type,
       date: values.date,
       created_by: user?.id,
+      items: appliedItems,
     }).select().single()
 
     if (error || !expense) { setServerError(error?.message || 'Failed to create expense'); return }
@@ -348,6 +350,8 @@ export function ExpenseCreate() {
       included: (splits[p.userId] || 0) > 0,
       value: +(splits[p.userId] || 0).toFixed(2)
     })))
+
+    setAppliedItems(scannedBill.items)
 
     // Close modal
     setShowScanner(false)
