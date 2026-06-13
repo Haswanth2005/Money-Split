@@ -299,7 +299,38 @@ export function ExpenseCreate() {
       })
     }
 
-    return memberTotals
+    // Normalization to Grand Total
+    const totalCalculated = Object.values(memberTotals).reduce((sum, val) => sum + val, 0)
+    if (totalCalculated > 0 && Math.abs(totalCalculated - scannedBill.grandTotal) > 0.01) {
+      const scale = scannedBill.grandTotal / totalCalculated
+      Object.keys(memberTotals).forEach(uid => {
+        memberTotals[uid] *= scale
+      })
+    }
+
+    // Distribute any rounding errors to the first active participant
+    const roundedTotals: Record<string, number> = {}
+    let sumRounded = 0
+    const activeUids = Object.keys(memberTotals).filter(uid => memberTotals[uid] > 0)
+    
+    activeUids.forEach(uid => {
+      roundedTotals[uid] = +memberTotals[uid].toFixed(2)
+      sumRounded += roundedTotals[uid]
+    })
+
+    const discrepancy = +(scannedBill.grandTotal - sumRounded).toFixed(2)
+    if (Math.abs(discrepancy) > 0 && activeUids.length > 0) {
+      roundedTotals[activeUids[0]] = +(roundedTotals[activeUids[0]] + discrepancy).toFixed(2)
+    }
+
+    // Set zero for any other users
+    members.forEach(m => {
+      if (roundedTotals[m.user_id] === undefined) {
+        roundedTotals[m.user_id] = 0
+      }
+    })
+
+    return roundedTotals
   }
 
   const applyBillToExpense = () => {
