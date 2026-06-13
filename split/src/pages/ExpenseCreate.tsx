@@ -236,7 +236,7 @@ export function ExpenseCreate() {
         'Authorization': `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: 'llama-3.2-11b-vision-preview',
+        model: 'llama-3.2-11b-vision',
         messages: [
           {
             role: 'user',
