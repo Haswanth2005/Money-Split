@@ -178,7 +178,7 @@ export function ExpenseCreate() {
     setScanError('')
     setScannedBill(null)
 
-    const apiKey = localStorage.getItem('money_split_gemini_api_key')
+    const apiKey = localStorage.getItem('money_split_groq_api_key')
     if (!apiKey) {
       // Mock billing data
       setTimeout(() => {
@@ -208,7 +208,7 @@ export function ExpenseCreate() {
 
     try {
       const base64 = await fileToBase64(file)
-      const data = await scanReceiptWithGemini(base64, file.type, apiKey)
+      const data = await scanReceiptWithGroq(base64, file.type, apiKey)
       if (data && data.items) {
         setScannedBill(data)
         const initialShares: Record<number, string[]> = {}
@@ -227,38 +227,42 @@ export function ExpenseCreate() {
     }
   }
 
-  const scanReceiptWithGemini = async (base64Image: string, mimeType: string, apiKey: string) => {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+  const scanReceiptWithGroq = async (base64Image: string, mimeType: string, apiKey: string) => {
+    const url = 'https://api.groq.com/openai/v1/chat/completions';
     const response = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
       body: JSON.stringify({
-        contents: [
+        model: 'llama-3.2-11b-vision-preview',
+        messages: [
           {
-            parts: [
+            role: 'user',
+            content: [
               {
+                type: 'text',
                 text: "Analyze this receipt image. Extract all items (name, quantity, unit price, total price), subtotal, tax/gst, and grand total. Return ONLY a JSON object: {\"merchant\": \"\", \"items\": [{\"name\": \"\", \"quantity\": 1, \"unitPrice\": 0.0, \"total\": 0.0}], \"tax\": 0.0, \"grandTotal\": 0.0}."
               },
               {
-                inlineData: {
-                  mimeType,
-                  data: base64Image
+                type: 'image_url',
+                image_url: {
+                  url: `data:${mimeType};base64,${base64Image}`
                 }
               }
             ]
           }
         ],
-        generationConfig: {
-          responseMimeType: "application/json"
-        }
+        response_format: { type: 'json_object' }
       })
     });
     if (!response.ok) {
       throw new Error(await response.text());
     }
     const result = await response.json();
-    const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
-    return JSON.parse(text);
+    const content = result.choices?.[0]?.message?.content;
+    return JSON.parse(content);
   }
 
   const toggleItemShare = (itemIdx: number, userId: string) => {
@@ -510,7 +514,7 @@ export function ExpenseCreate() {
             </div>
 
             {/* API Warning if missing */}
-            {!localStorage.getItem('money_split_gemini_api_key') && !scannedBill && (
+            {!localStorage.getItem('money_split_groq_api_key') && !scannedBill && (
               <div style={{
                 background: 'rgba(245,78,0,0.06)', border: '1px dashed var(--color-primary)',
                 padding: '12px 16px', borderRadius: 'var(--radius-md)', marginBottom: 16,
@@ -520,7 +524,7 @@ export function ExpenseCreate() {
                 <div>
                   <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-ink)' }}>Demo Mode Enabled</p>
                   <p style={{ fontSize: 12, color: 'var(--color-muted)', marginTop: 2 }}>
-                    To scan real bills using AI, add a Gemini API Key in Settings. For now, you can upload any image to test the parser with a demo receipt!
+                    To scan real bills using AI, add a Groq API Key in Settings. For now, you can upload any image to test the parser with a demo receipt!
                   </p>
                 </div>
               </div>
@@ -561,7 +565,7 @@ export function ExpenseCreate() {
                   animation: 'spin 1s linear infinite', margin: '0 auto 16px'
                 }} />
                 <p style={{ fontSize: 14, fontWeight: 500, color: 'var(--color-ink)' }}>
-                  {localStorage.getItem('money_split_gemini_api_key') 
+                  {localStorage.getItem('money_split_groq_api_key') 
                     ? 'AI is reading your bill items…' 
                     : 'Loading demo receipt table…'}
                 </p>

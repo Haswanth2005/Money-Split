@@ -25,7 +25,7 @@ export function AccountSettings() {
   const { profile, signOut } = useAuth()
   const qc = useQueryClient()
   const [toast, setToast] = useState('')
-  const [geminiKey, setGeminiKey] = useState(() => localStorage.getItem('money_split_gemini_api_key') || '')
+  const [groqKey, setGroqKey] = useState(() => localStorage.getItem('money_split_groq_api_key') || '')
 
   const showToast = (msg: string) => {
     setToast(msg)
@@ -65,10 +65,10 @@ export function AccountSettings() {
     showToast('Password changed')
   }
 
-  const saveGeminiKey = (key: string) => {
-    localStorage.setItem('money_split_gemini_api_key', key.trim())
-    setGeminiKey(key.trim())
-    showToast('Gemini API key saved')
+  const saveGroqKey = (key: string) => {
+    localStorage.setItem('money_split_groq_api_key', key.trim())
+    setGroqKey(key.trim())
+    showToast('Groq API key saved')
   }
 
   return (
@@ -147,24 +147,24 @@ export function AccountSettings() {
 
           {/* Right Column: Appearance & Session */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            {/* Gemini API Key */}
+            {/* Groq API Key */}
             <div className="card">
-              <h2 className="title-sm" style={{ marginBottom: 4 }}>Gemini API Key</h2>
+              <h2 className="title-sm" style={{ marginBottom: 4 }}>Groq API Key</h2>
               <p className="body-sm text-muted" style={{ marginBottom: 16 }}>
-                Add your Gemini API key to scan receipts and bills using AI. Key is stored locally in your browser.
+                Add your Groq API key to scan receipts and bills using AI. Key is stored locally in your browser.
               </p>
               <div style={{ display: 'flex', gap: 8 }}>
                 <input
                   type="password"
                   className="input mono"
-                  placeholder="AIzaSy..."
-                  value={geminiKey}
-                  onChange={e => setGeminiKey(e.target.value)}
+                  placeholder="gsk_..."
+                  value={groqKey}
+                  onChange={e => setGroqKey(e.target.value)}
                 />
                 <button
                   type="button"
                   className="btn btn-secondary"
-                  onClick={() => saveGeminiKey(geminiKey)}
+                  onClick={() => saveGroqKey(groqKey)}
                 >
                   Save
                 </button>
