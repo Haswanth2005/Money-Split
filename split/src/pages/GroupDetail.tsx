@@ -13,7 +13,7 @@ async function fetchGroupData(groupId: string) {
     supabase.from('groups').select('*').eq('id', groupId).single(),
     supabase.from('group_members').select('*, users(id, email, full_name)').eq('group_id', groupId),
     supabase.from('expenses')
-      .select('*, payer:users!paid_by(id, full_name, email), expense_splits(user_id, owed_share, share_units)')
+      .select('*, payer:users!paid_by(id, full_name, email), splits:expense_splits(user_id, owed_share, share_units)')
       .eq('group_id', groupId)
       .is('deleted_at', null)
       .order('date', { ascending: false }),

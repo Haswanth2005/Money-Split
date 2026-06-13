@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../supabaseClient'
 import { useAuth } from '../contexts/AuthContext'
 import { getInitials, formatDate } from '../utils/formatters'
-import { ArrowLeft, Plus, X, Trash2, UserMinus, Mail, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, Plus, X, Trash2, UserMinus, Mail, AlertTriangle, Copy } from 'lucide-react'
 import type { GroupMember, GroupInvite } from '../types'
 
 export function GroupSettings() {
@@ -199,13 +199,28 @@ export function GroupSettings() {
                     <p className="caption">Expires {formatDate(inv.expires_at)}</p>
                   </div>
                 </div>
-                <button
-                  onClick={() => revokeInvite(inv.id, inv.email)}
-                  className="btn btn-ghost btn-sm"
-                  aria-label="Revoke invite"
-                >
-                  <X size={14} />
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(`${window.location.origin}/invite/${inv.token}`)
+                      showToast('Invite link copied!')
+                    }}
+                    className="btn btn-ghost btn-sm"
+                    style={{ fontSize: 12, gap: 4, height: 28 }}
+                    title="Copy invite link"
+                  >
+                    <Copy size={13} />
+                    Copy Link
+                  </button>
+                  <button
+                    onClick={() => revokeInvite(inv.id, inv.email)}
+                    className="btn btn-ghost btn-sm"
+                    style={{ color: 'var(--color-error)' }}
+                    aria-label="Revoke invite"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
               </div>
             ))}
           </div>

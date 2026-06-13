@@ -103,6 +103,8 @@ create table public.settlements (
 -- ── 10. TRIGGER: Sync auth.users → public.users ──────────────────────────────
 create or replace function public.handle_new_user()
 returns trigger as $$
+declare
+  invite_row record;
 begin
   insert into public.users (id, email, full_name, avatar_url)
   values (
@@ -111,6 +113,21 @@ begin
     coalesce(new.raw_user_meta_data->>'full_name', split_part(new.email, '@', 1)),
     new.raw_user_meta_data->>'avatar_url'
   );
+
+  -- Auto-join groups with pending invites matching the email
+  for invite_row in 
+    select id, group_id from public.group_invites 
+    where lower(email) = lower(new.email) and status = 'pending'
+  loop
+    insert into public.group_members (group_id, user_id)
+    values (invite_row.group_id, new.id)
+    on conflict (group_id, user_id) do nothing;
+
+    update public.group_invites
+    set status = 'accepted'
+    where id = invite_row.id;
+  end loop;
+
   return new;
 end;
 $$ language plpgsql security definer;
