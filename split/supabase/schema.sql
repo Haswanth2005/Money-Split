@@ -53,7 +53,8 @@ create table public.expenses (
   created_by uuid references public.users(id) on delete set null,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null,
   updated_at timestamp with time zone default timezone('utc'::text, now()) not null,
-  deleted_at timestamp with time zone
+  deleted_at timestamp with time zone,
+  items jsonb
 );
 
 -- ── 6. EXPENSE SPLITS ────────────────────────────────────────────────────────
