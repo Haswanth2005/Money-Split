@@ -81,15 +81,15 @@ export function ExpenseCreate() {
     }
   }, [members.length])
 
-  useEffect(() => {
-    // Reset values when split type changes
+  const handleSplitTypeChange = (type: SplitMechanism) => {
+    setValue('split_type', type)
     const count = participants.filter((p) => p.included).length
     setParticipants((prev) => prev.map((p) => ({
       ...p,
-      value: splitType === 'equal' ? 1 : splitType === 'percentage' ? (p.included ? +(100 / Math.max(count, 1)).toFixed(2) : 0) : 1
+      value: type === 'equal' ? 1 : type === 'percentage' ? (p.included ? +(100 / Math.max(count, 1)).toFixed(2) : 0) : type === 'exact' ? 0 : 1
     })))
     setSplitError('')
-  }, [splitType])
+  }
 
   const includedCount = participants.filter((p) => p.included).length
   const totalAssigned = participants.filter((p) => p.included).reduce((s, p) => s + p.value, 0)
@@ -394,7 +394,7 @@ export function ExpenseCreate() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 24 }}>
               {(['equal', 'exact', 'percentage', 'shares'] as SplitMechanism[]).map((t) => (
                 <button key={t} type="button"
-                  onClick={() => setValue('split_type', t)}
+                  onClick={() => handleSplitTypeChange(t)}
                   style={{
                     padding: '10px 8px', borderRadius: 'var(--radius-md)',
                     border: splitType === t ? '2px solid var(--color-primary)' : '1px solid var(--color-hairline)',
@@ -618,12 +618,12 @@ export function ExpenseCreate() {
                                 type="button"
                                 onClick={() => toggleItemShare(idx, m.user_id)}
                                 style={{
-                                  padding: '4px 10px', borderRadius: 20,
-                                  fontSize: 12, fontWeight: 500, cursor: 'pointer',
-                                  border: isShared ? '1px solid var(--color-primary)' : '1px solid var(--color-hairline)',
-                                  background: isShared ? 'rgba(245,78,0,0.08)' : 'var(--color-canvas)',
-                                  color: isShared ? 'var(--color-primary)' : 'var(--color-muted)',
-                                  transition: 'all 100ms'
+                                  padding: '6px 12px', borderRadius: 20,
+                                  fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                                  border: isShared ? 'none' : '1px solid var(--color-hairline)',
+                                  background: isShared ? 'var(--color-primary)' : 'transparent',
+                                  color: isShared ? '#ffffff' : 'var(--color-muted)',
+                                  transition: 'all 120ms'
                                 }}
                               >
                                 {u?.full_name || u?.email}
