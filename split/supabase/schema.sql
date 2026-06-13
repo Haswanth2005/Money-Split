@@ -163,9 +163,16 @@ create policy "Users can update their own profile"
 -- 12b. Groups
 alter table public.groups enable row level security;
 
-create policy "Groups are viewable by members"
+create policy "Groups are viewable by members or invitees"
   on public.groups for select
-  using (public.is_group_member(id, auth.uid()) or created_by = auth.uid());
+  using (
+    public.is_group_member(id, auth.uid()) or 
+    created_by = auth.uid() or
+    exists (
+      select 1 from public.group_invites
+      where group_invites.group_id = id
+    )
+  );
 
 create policy "Authenticated users can create groups"
   on public.groups for insert
@@ -273,12 +280,9 @@ create policy "Group members can record settlements"
 -- 12h. Group Invites
 alter table public.group_invites enable row level security;
 
-create policy "Invites are viewable by group members or invitee"
+create policy "Invites are viewable by anyone"
   on public.group_invites for select
-  using (
-    public.is_group_member(group_id, auth.uid()) or
-    email = (select email from public.users where id = auth.uid())
-  );
+  using (true);
 
 create policy "Group members can create invites"
   on public.group_invites for insert
