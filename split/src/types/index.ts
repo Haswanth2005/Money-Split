@@ -9,6 +9,7 @@ export interface User {
   email: string
   full_name: string
   avatar_url?: string | null
+  upi_id?: string | null
   created_at: string
 }
 

@@ -29,11 +29,22 @@ export function RecordSettlement() {
   const { data: members = [] } = useQuery({
     queryKey: ['group-members', groupId],
     queryFn: async () => {
-      const { data } = await supabase.from('group_members').select('*, users(id, email, full_name)').eq('group_id', groupId!)
+      const { data } = await supabase.from('group_members').select('*, users(id, email, full_name, upi_id)').eq('group_id', groupId!)
       return (data || []) as GroupMember[]
     },
     enabled: !!groupId,
   })
+
+  const receiverMember = members.find(m => m.user_id === paidTo)
+  const receiverUser = receiverMember?.users as any
+  const receiverUpi = receiverUser?.upi_id
+  const receiverName = receiverUser?.full_name || 'Receiver'
+
+  const payViaUpi = () => {
+    if (!receiverUpi) return
+    const upiUrl = `upi://pay?pa=${receiverUpi}&pn=${encodeURIComponent(receiverName)}&am=${amount}&cu=INR&tn=${encodeURIComponent(note || 'Money Split Settlement')}`
+    window.location.href = upiUrl
+  }
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -144,6 +155,28 @@ export function RecordSettlement() {
             <label className="form-label" htmlFor="settle-note">Note (optional)</label>
             <input id="settle-note" type="text" className="input" placeholder="e.g. UPI transfer" value={note} onChange={e => setNote(e.target.value)} />
           </div>
+
+          {receiverUpi && amount > 0 && (
+            <button
+              type="button"
+              onClick={payViaUpi}
+              className="btn"
+              style={{
+                width: '100%',
+                marginBottom: 16,
+                background: '#1b5e20',
+                color: '#fff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                fontWeight: 600,
+                border: 'none',
+              }}
+            >
+              💸 Open UPI Apps to Pay (₹{amount})
+            </button>
+          )}
 
           {error && (
             <div style={{ background: 'var(--color-error-bg)', color: 'var(--color-error)', padding: '10px 14px', borderRadius: 'var(--radius-md)', fontSize: 14, marginBottom: 16 }}>

@@ -10,6 +10,7 @@ import { UserCircle2, Sun, Moon } from 'lucide-react'
 
 const profileSchema = z.object({
   full_name: z.string().min(2, 'Name must be at least 2 characters').max(80),
+  upi_id: z.string().max(100).optional().or(z.literal('')),
 })
 
 const passwordSchema = z.object({
@@ -24,6 +25,7 @@ export function AccountSettings() {
   const { profile, signOut } = useAuth()
   const qc = useQueryClient()
   const [toast, setToast] = useState('')
+  const [geminiKey, setGeminiKey] = useState(() => localStorage.getItem('money_split_gemini_api_key') || '')
 
   const showToast = (msg: string) => {
     setToast(msg)
@@ -32,7 +34,10 @@ export function AccountSettings() {
 
   const profileForm = useForm<ProfileValues>({
     resolver: zodResolver(profileSchema),
-    values: { full_name: profile?.full_name || '' },
+    values: { 
+      full_name: profile?.full_name || '',
+      upi_id: profile?.upi_id || '',
+    },
   })
 
   const passwordForm = useForm<PasswordValues>({
@@ -42,7 +47,10 @@ export function AccountSettings() {
   const onProfileSave = async (values: ProfileValues) => {
     const { error } = await supabase
       .from('users')
-      .update({ full_name: values.full_name })
+      .update({ 
+        full_name: values.full_name,
+        upi_id: values.upi_id || null,
+      })
       .eq('id', profile!.id)
 
     if (error) return
@@ -55,6 +63,12 @@ export function AccountSettings() {
     if (error) return
     passwordForm.reset()
     showToast('Password changed')
+  }
+
+  const saveGeminiKey = (key: string) => {
+    localStorage.setItem('money_split_gemini_api_key', key.trim())
+    setGeminiKey(key.trim())
+    showToast('Gemini API key saved')
   }
 
   return (
@@ -84,7 +98,7 @@ export function AccountSettings() {
                 </div>
               </div>
 
-              <h2 className="title-sm" style={{ marginBottom: 16 }}>Display name</h2>
+              <h2 className="title-sm" style={{ marginBottom: 16 }}>Profile details</h2>
               <form onSubmit={profileForm.handleSubmit(onProfileSave)}>
                 <div style={{ marginBottom: 16 }}>
                   <label className="form-label" htmlFor="account-name">Full name</label>
@@ -93,8 +107,15 @@ export function AccountSettings() {
                     <p className="form-error">{profileForm.formState.errors.full_name.message}</p>
                   )}
                 </div>
+                <div style={{ marginBottom: 16 }}>
+                  <label className="form-label" htmlFor="account-upi">UPI ID (for receiving payments)</label>
+                  <input id="account-upi" type="text" className="input mono" placeholder="e.g. name@upi" {...profileForm.register('upi_id')} />
+                  {profileForm.formState.errors.upi_id && (
+                    <p className="form-error">{profileForm.formState.errors.upi_id.message}</p>
+                  )}
+                </div>
                 <button type="submit" className="btn btn-secondary" disabled={profileForm.formState.isSubmitting}>
-                  {profileForm.formState.isSubmitting ? 'Saving…' : 'Save name'}
+                  {profileForm.formState.isSubmitting ? 'Saving…' : 'Save profile'}
                 </button>
               </form>
             </div>
@@ -126,6 +147,30 @@ export function AccountSettings() {
 
           {/* Right Column: Appearance & Session */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {/* Gemini API Key */}
+            <div className="card">
+              <h2 className="title-sm" style={{ marginBottom: 4 }}>Gemini API Key</h2>
+              <p className="body-sm text-muted" style={{ marginBottom: 16 }}>
+                Add your Gemini API key to scan receipts and bills using AI. Key is stored locally in your browser.
+              </p>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  type="password"
+                  className="input mono"
+                  placeholder="AIzaSy..."
+                  value={geminiKey}
+                  onChange={e => setGeminiKey(e.target.value)}
+                />
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => saveGeminiKey(geminiKey)}
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+
             {/* Appearance */}
             <AppearanceCard />
 

@@ -17,6 +17,7 @@ create table public.users (
   email text not null unique,
   full_name text not null,
   avatar_url text,
+  upi_id text,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
