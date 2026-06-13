@@ -102,7 +102,7 @@ export function GroupSettings() {
   const invites = data?.invites || []
 
   return (
-    <div>
+    <div className="detail-layout">
       <div className="page-header">
         <div className="page-header-inner">
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -117,7 +117,7 @@ export function GroupSettings() {
         </div>
       </div>
 
-      <div className="page-body" style={{ maxWidth: 600 }}>
+      <div className="page-body">
         {/* Members */}
         <div className="card" style={{ marginBottom: 20 }}>
           <h2 className="title-sm" style={{ marginBottom: 20 }}>Members ({members.length})</h2>

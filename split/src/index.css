@@ -887,3 +887,22 @@ select.input {
 .user-profile-btn:hover {
   background-color: var(--color-canvas-soft);
 }
+
+/* Detail page layout container for desktop alignment */
+.detail-layout {
+  max-width: 680px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+@media (min-width: 768px) {
+  .detail-layout .page-header {
+    padding-left: 0;
+    padding-right: 0;
+    background: transparent;
+  }
+  .detail-layout .page-body {
+    padding-left: 0;
+    padding-right: 0;
+  }
+}

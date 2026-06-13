@@ -119,7 +119,7 @@ export function ExpenseDetail() {
   const SPLIT_LABEL: Record<string, string> = { equal: 'Equal', exact: 'Exact amounts', percentage: 'Percentage', shares: 'Shares' }
 
   return (
-    <div>
+    <div className="detail-layout">
       {/* Header */}
       <div className="page-header">
         <div className="page-header-inner">
@@ -145,7 +145,7 @@ export function ExpenseDetail() {
         </div>
       </div>
 
-      <div className="page-body" style={{ maxWidth: 680 }}>
+      <div className="page-body">
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
           {/* Amount card */}
           <div className="card" style={{ padding: '18px 20px' }}>

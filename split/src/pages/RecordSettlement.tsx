@@ -78,7 +78,7 @@ export function RecordSettlement() {
   }
 
   return (
-    <div>
+    <div className="detail-layout">
       <div className="page-header">
         <div className="page-header-inner">
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -93,7 +93,7 @@ export function RecordSettlement() {
         </div>
       </div>
 
-      <div className="page-body" style={{ maxWidth: 500 }}>
+      <div className="page-body">
         {/* Visual summary */}
         {paidBy && paidTo && amount > 0 && (
           <div className="card" style={{ marginBottom: 24, padding: '20px 24px', background: 'var(--color-success-bg)', border: '1px solid rgba(31,138,101,0.2)' }}>

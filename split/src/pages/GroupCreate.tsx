@@ -106,7 +106,7 @@ export function GroupCreate() {
   }
 
   return (
-    <div>
+    <div className="detail-layout">
       <div className="page-header">
         <div className="page-header-inner">
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -121,7 +121,7 @@ export function GroupCreate() {
         </div>
       </div>
 
-      <div className="page-body" style={{ maxWidth: 600 }}>
+      <div className="page-body">
         <form onSubmit={handleSubmit(onSubmit)} noValidate>
           {/* Group name */}
           <div className="card" style={{ marginBottom: 20 }}>

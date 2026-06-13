@@ -107,7 +107,7 @@ export function ExpenseEdit() {
   }
 
   return (
-    <div>
+    <div className="detail-layout">
       <div className="page-header">
         <div className="page-header-inner">
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -116,7 +116,7 @@ export function ExpenseEdit() {
           </div>
         </div>
       </div>
-      <div className="page-body" style={{ maxWidth: 600 }}>
+      <div className="page-body">
         <div className="card" style={{ marginBottom: 20 }}>
           <h2 className="title-sm" style={{ marginBottom: 20 }}>Details</h2>
           <div style={{ marginBottom: 16 }}>

@@ -31,7 +31,7 @@ export function Help() {
   ]
 
   return (
-    <div>
+    <div className="detail-layout">
       <div className="page-header">
         <div className="page-header-inner">
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -46,7 +46,7 @@ export function Help() {
         </div>
       </div>
 
-      <div className="page-body" style={{ maxWidth: 680 }}>
+      <div className="page-body">
         <div className="settings-grid">
           {/* Left: Help Center */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
