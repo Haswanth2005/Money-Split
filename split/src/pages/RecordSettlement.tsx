@@ -167,14 +167,6 @@ export function RecordSettlement() {
     return data.publicUrl
   }
 
-  // ── Pay with UPI (deep link) ─────────────────────────────────────────────
-
-  const payViaUpi = () => {
-    if (!receiverUpi) return
-    const upiUrl = `upi://pay?pa=${encodeURIComponent(receiverUpi)}&pn=${encodeURIComponent(receiverName)}&am=${amount}&cu=INR&tn=${encodeURIComponent(note || 'Money Split Settlement')}`
-    window.location.href = upiUrl
-  }
-
   // ── "I Paid" — create/update settlement to AWAITING_CONFIRMATION ─────────
 
   const markAsPaid = async () => {
@@ -389,7 +381,7 @@ export function RecordSettlement() {
 
         {/* ── Post-action state ── */}
         {(actionDone || settledId) && (
-          <div className="card" style={{ padding: '20px 24px', borderLeft: '3px solid var(--color-success)' }}>
+          <div className="card" style={{ padding: '20px 24px', background: 'var(--color-success-bg)', border: '1px solid rgba(5,150,105,0.2)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{ fontSize: 28 }}>✅</div>
               <div>
@@ -420,7 +412,7 @@ export function RecordSettlement() {
         )}
 
         {isDisputed && (
-          <div className="card" style={{ padding: '20px 24px', borderLeft: '3px solid var(--color-error)' }}>
+          <div className="card" style={{ padding: '20px 24px', background: 'var(--color-error-bg)', border: '1px solid rgba(220,38,38,0.2)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{ fontSize: 28 }}>⚠️</div>
               <div>
@@ -435,16 +427,15 @@ export function RecordSettlement() {
         {!actionDone && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {receiverUpi && amount > 0 && (
-              <button
-                type="button"
-                onClick={payViaUpi}
+              <a
+                href={`upi://pay?pa=${encodeURIComponent(receiverUpi)}&pn=${encodeURIComponent(receiverName)}&am=${amount}&cu=INR&tn=${encodeURIComponent(note || 'Money Split Settlement')}`}
                 className="btn btn-upi-pay btn-lg"
                 id="pay-upi-btn"
-                style={{ width: '100%', fontWeight: 700 }}
+                style={{ width: '100%', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               >
                 <Smartphone size={18} />
                 Pay ₹{amount.toLocaleString('en-IN')} with UPI
-              </button>
+              </a>
             )}
             <button
               type="button"
