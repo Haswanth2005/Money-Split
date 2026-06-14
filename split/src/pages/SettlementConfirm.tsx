@@ -234,12 +234,14 @@ export function SettlementConfirm() {
             </button>
             <div>
               <p className="caption" style={{ marginBottom: 2 }}>Settlement</p>
-              <h1 className="display-md">Confirm payment</h1>
+              <h1 className="display-lg">Confirm payment</h1>
             </div>
           </div>
-          <Link to={`/groups/${groupId}/settlement-history`} className="btn btn-secondary btn-sm">
-            <History size={14} /> History
-          </Link>
+          <div className="page-header-actions">
+            <Link to={`/groups/${groupId}/settlement-history`} className="btn btn-secondary btn-sm" style={{ width: '100%' }}>
+              <History size={14} /> History
+            </Link>
+          </div>
         </div>
       </div>
 
@@ -393,11 +395,15 @@ export function SettlementConfirm() {
             <button
               onClick={() => setShowConfirmDialog(true)}
               disabled={isProcessing}
-              className="btn btn-primary btn-lg"
+              className="btn btn-lg"
               id="confirm-received-btn"
               style={{
                 width: '100%',
+                background: 'linear-gradient(135deg, #1a7f4e 0%, #059669 100%)',
+                color: '#fff',
+                border: 'none',
                 fontWeight: 700,
+                boxShadow: '0 2px 8px rgba(5,150,105,0.3)',
               }}
             >
               <CheckCircle2 size={18} />
@@ -406,9 +412,9 @@ export function SettlementConfirm() {
             <button
               onClick={() => setShowDisputeDialog(true)}
               disabled={isProcessing}
-              className="btn btn-secondary btn-lg"
+              className="btn btn-danger btn-lg"
               id="not-received-btn"
-              style={{ width: '100%', fontWeight: 600, color: 'var(--color-error)', borderColor: 'var(--color-error)' }}
+              style={{ width: '100%', fontWeight: 600 }}
             >
               <XCircle size={18} />
               Not Received

@@ -785,7 +785,7 @@ select.input {
     width: 100% !important;
   }
 
-  .page-header-inner .btn {
+  .page-header-actions .btn {
     flex: 1;
     justify-content: center;
   }
