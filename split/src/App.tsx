@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ThemeProvider } from './contexts/ThemeContext'
 import { ThemeToggle } from './components/ThemeToggle'
 import { ProtectedRoute } from './components/ProtectedRoute'
+import { NotificationsSidebar, NotificationBell } from './components/NotificationsSidebar'
 import { Login } from './pages/Login'
 import { Signup } from './pages/Signup'
 import { Dashboard } from './pages/Dashboard'
@@ -333,6 +334,24 @@ function MobileBottomNav() {
 // ─── App Shell Layout ──────────────────────────────────────────────────────────
 function AppShell({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false)
+  const [notifOpen, setNotifOpen] = useState(false)
+  const { user } = useAuth()
+
+  // Fetch notification count for the badge
+  const { data: pendingCount = 0 } = useQuery({
+    queryKey: ['global-notifications', user?.id],
+    queryFn: async () => {
+      const { count } = await supabase
+        .from('settlements')
+        .select('id', { count: 'exact', head: true })
+        .eq('paid_to', user!.id)
+        .eq('status', 'AWAITING_CONFIRMATION')
+      return count ?? 0
+    },
+    enabled: !!user?.id,
+    refetchInterval: 30_000,
+    select: (data) => data,
+  })
 
   return (
     <div className={`app-shell ${collapsed ? 'collapsed' : ''}`}>
@@ -348,11 +367,14 @@ function AppShell({ children }: { children: React.ReactNode }) {
             <Menu size={16} />
           </button>
         )}
+        {/* Notification bell — top right of main area */}
+        <NotificationBell count={pendingCount as number} onClick={() => setNotifOpen(true)} />
         <div className="main-content-container">
           {children}
         </div>
       </main>
       <MobileBottomNav />
+      <NotificationsSidebar open={notifOpen} onClose={() => setNotifOpen(false)} />
     </div>
   )
 }
