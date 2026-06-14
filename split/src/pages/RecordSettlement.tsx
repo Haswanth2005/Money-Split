@@ -251,12 +251,12 @@ export function RecordSettlement() {
       <div className="page-header">
         <div className="page-header-inner">
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <button onClick={() => navigate(-1)} className="btn btn-ghost btn-sm" aria-label="Go back">
+            <button onClick={() => navigate(-1)} className="btn btn-ghost btn-sm">
               <ArrowLeft size={16} />
             </button>
             <div>
-              <p className="caption" style={{ marginBottom: 2 }}>Settlement</p>
-              <h1 className="display-lg">Pay via UPI</h1>
+              <p className="caption" style={{ marginBottom: 2 }}>Record Payment</p>
+              <h1 className="display-md">Settle up</h1>
             </div>
           </div>
           <Link
@@ -433,29 +433,27 @@ export function RecordSettlement() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {receiverUpi && amount > 0 && (
               <button
-                type="button"
                 onClick={payViaUpi}
-                className="btn btn-upi-pay btn-lg"
-                id="pay-upi-btn"
-                style={{ width: '100%', fontWeight: 700 }}
+                className="btn btn-primary btn-lg"
+                style={{
+                  flex: 1,
+                }}
               >
-                <Smartphone size={18} />
-                Pay ₹{amount.toLocaleString('en-IN')} with UPI
+                📱 Pay with UPI
               </button>
             )}
             <button
               type="button"
               onClick={markAsPaid}
               disabled={isSubmitting || uploadingScreenshot || !paidTo || !paidBy || amount <= 0}
-              className="btn btn-i-paid btn-lg"
-              id="i-paid-btn"
-              style={{ width: '100%', fontWeight: 600 }}
+              className="btn btn-secondary btn-lg"
+              style={{
+                flex: 1,
+                border: '1px solid var(--color-primary)',
+                color: 'var(--color-primary)'
+              }}
             >
-              {isSubmitting || uploadingScreenshot ? (
-                <>Processing…</>
-              ) : (
-                <>✓ I Paid — Notify {receiverName}</>
-              )}
+              {isSubmitting || uploadingScreenshot ? 'Processing...' : '✓ I Paid'}
             </button>
             <div style={{ display: 'flex', gap: 10 }}>
               <button type="button" onClick={() => navigate(-1)} className="btn btn-secondary" style={{ flex: 1 }}>Cancel</button>
