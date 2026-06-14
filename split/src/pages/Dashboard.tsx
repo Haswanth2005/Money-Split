@@ -156,6 +156,7 @@ async function fetchDashboardData(userId: string): Promise<DashboardBalance> {
       .from('settlements')
       .select('paid_by, paid_to, amount')
       .eq('group_id', g.id)
+      .eq('status', 'SETTLED')
 
     let net = 0
     for (const exp of expenses || []) {

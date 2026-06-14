@@ -63,7 +63,9 @@ export function GroupDetail() {
       paid_by: e.paid_by,
       splits: (e.splits || []).map((s: any) => ({ user_id: s.user_id, owed_share: s.owed_share })),
     })),
-    settlements.map((s) => ({ paid_by: s.paid_by, paid_to: s.paid_to, amount: s.amount }))
+    settlements
+      .filter((s: any) => s.status === 'SETTLED')
+      .map((s: any) => ({ paid_by: s.paid_by, paid_to: s.paid_to, amount: s.amount }))
   )
   const simplified = simplifyDebts(netBalances)
 
