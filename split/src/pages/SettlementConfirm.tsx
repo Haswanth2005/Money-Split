@@ -75,12 +75,12 @@ export function SettlementConfirm() {
   }
 
   // Fetch settlement with joined payer/payee
-  const { data: settlement, isLoading } = useQuery({
+  const { data: settlement, isLoading, isError } = useQuery({
     queryKey: ['settlement', sid],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('settlements')
-        .select('*, payer:users!paid_by(id, full_name, upi_id), payee:users!paid_to(id, full_name, upi_id)')
+        .select('*, payer:users!paid_by(id, full_name), payee:users!paid_to(id, full_name)')
         .eq('id', sid!)
         .single()
       if (error) throw error
@@ -104,15 +104,30 @@ export function SettlementConfirm() {
     )
   }
 
-  if (!settlement) {
+  if (isError || !settlement) {
     return (
       <div className="detail-layout">
+        <div className="page-header">
+          <div className="page-header-inner">
+            <button onClick={() => navigate(-1)} className="btn btn-ghost btn-sm">
+              <ArrowLeft size={16} /> Back
+            </button>
+          </div>
+        </div>
         <div className="page-body">
-          <div className="card">
-            <div className="empty-state">
-              <p className="empty-state-title">Settlement not found</p>
-              <p className="empty-state-desc">This settlement may have been deleted or you don't have access.</p>
-            </div>
+          <div className="card" style={{ padding: '32px 24px', textAlign: 'center' }}>
+            <p style={{ fontSize: 32, marginBottom: 12 }}>⚠️</p>
+            <p className="empty-state-title">Settlement not found</p>
+            <p className="empty-state-desc" style={{ marginTop: 6 }}>
+              This settlement may have been deleted, or you may not have access.
+            </p>
+            <button
+              onClick={() => navigate(-1)}
+              className="btn btn-secondary"
+              style={{ marginTop: 20 }}
+            >
+              Go back
+            </button>
           </div>
         </div>
       </div>
@@ -146,8 +161,10 @@ export function SettlementConfirm() {
     }
     qc.invalidateQueries({ queryKey: ['group', groupId] })
     qc.invalidateQueries({ queryKey: ['settlement', sid] })
+    qc.invalidateQueries({ queryKey: ['global-notifications'] })
     qc.invalidateQueries({ queryKey: ['dashboard'] })
-    showToast(`${payee?.full_name} confirmed receiving your payment. ✓`, 'success')
+    // Stay on this page — the query refetch will show SETTLED status
+    showToast('Payment confirmed! ✓ Settlement marked as settled.', 'success')
   }
 
   // ── Not received / dispute ────────────────────────────────────────────────
@@ -169,8 +186,9 @@ export function SettlementConfirm() {
     }
     qc.invalidateQueries({ queryKey: ['group', groupId] })
     qc.invalidateQueries({ queryKey: ['settlement', sid] })
+    qc.invalidateQueries({ queryKey: ['global-notifications'] })
     qc.invalidateQueries({ queryKey: ['dashboard'] })
-    showToast(`${payee?.full_name} reported that the payment was not received.`, 'error')
+    showToast('Payment marked as disputed.', 'error')
   }
 
   // ─── Render ────────────────────────────────────────────────────────────────
