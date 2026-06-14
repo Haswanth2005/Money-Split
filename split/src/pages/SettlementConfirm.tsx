@@ -9,18 +9,18 @@ import type { SettlementStatus } from '../types'
 
 // ─── Status Chip (shared) ─────────────────────────────────────────────────────
 
-function StatusChip({ status }: { status: SettlementStatus }) {
-  const map: Record<SettlementStatus, { cls: string; label: string }> = {
+function StatusChip({ status }: { status: string | null | undefined }) {
+  const map: Record<string, { cls: string; label: string }> = {
     PENDING:               { cls: 'status-pending',  label: 'Pending' },
     AWAITING_CONFIRMATION: { cls: 'status-awaiting', label: 'Awaiting Confirmation' },
     SETTLED:               { cls: 'status-settled',  label: 'Settled ✓' },
     DISPUTED:              { cls: 'status-disputed', label: 'Disputed' },
   }
-  const { cls, label } = map[status]
+  const resolved = map[status ?? ''] ?? { cls: 'status-pending', label: status ?? 'Unknown' }
   return (
-    <span className={`status-chip ${cls}`}>
+    <span className={`status-chip ${resolved.cls}`}>
       <span className="status-chip-dot" />
-      {label}
+      {resolved.label}
     </span>
   )
 }
@@ -87,6 +87,7 @@ export function SettlementConfirm() {
       return data
     },
     enabled: !!sid,
+    placeholderData: (prev: any) => prev, // keep previous data while refetching
   })
 
   if (isLoading) {
@@ -134,9 +135,9 @@ export function SettlementConfirm() {
     )
   }
 
-  const payer   = settlement.payer   as any
-  const payee   = settlement.payee   as any
-  const status: SettlementStatus = settlement.status
+  const payer   = (settlement.payer   ?? {}) as any
+  const payee   = (settlement.payee   ?? {}) as any
+  const status  = (settlement.status  ?? 'PENDING') as SettlementStatus
   const isReceiver = user?.id === settlement.paid_to
   const isPayer    = user?.id === settlement.paid_by
   const canAct     = isReceiver && status === 'AWAITING_CONFIRMATION'
@@ -151,7 +152,6 @@ export function SettlementConfirm() {
       .update({
         status: 'SETTLED',
         confirmed_at: new Date().toISOString(),
-        updated_at:   new Date().toISOString(),
       })
       .eq('id', sid!)
     setIsProcessing(false)
@@ -163,7 +163,6 @@ export function SettlementConfirm() {
     qc.invalidateQueries({ queryKey: ['settlement', sid] })
     qc.invalidateQueries({ queryKey: ['global-notifications'] })
     qc.invalidateQueries({ queryKey: ['dashboard'] })
-    // Stay on this page — the query refetch will show SETTLED status
     showToast('Payment confirmed! ✓ Settlement marked as settled.', 'success')
   }
 
@@ -175,8 +174,7 @@ export function SettlementConfirm() {
     const { error } = await supabase
       .from('settlements')
       .update({
-        status:     'DISPUTED',
-        updated_at: new Date().toISOString(),
+        status: 'DISPUTED',
       })
       .eq('id', sid!)
     setIsProcessing(false)
