@@ -389,7 +389,7 @@ export function RecordSettlement() {
 
         {/* ── Post-action state ── */}
         {(actionDone || settledId) && (
-          <div className="card" style={{ padding: '20px 24px', background: 'var(--color-success-bg)', border: '1px solid rgba(5,150,105,0.2)' }}>
+          <div className="card" style={{ padding: '20px 24px', borderLeft: '3px solid var(--color-success)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{ fontSize: 28 }}>✅</div>
               <div>
@@ -420,7 +420,7 @@ export function RecordSettlement() {
         )}
 
         {isDisputed && (
-          <div className="card" style={{ padding: '20px 24px', background: 'var(--color-error-bg)', border: '1px solid rgba(220,38,38,0.2)' }}>
+          <div className="card" style={{ padding: '20px 24px', borderLeft: '3px solid var(--color-error)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{ fontSize: 28 }}>⚠️</div>
               <div>

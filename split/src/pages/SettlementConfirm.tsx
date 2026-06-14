@@ -371,7 +371,7 @@ export function SettlementConfirm() {
 
         {/* ── Disputed state ── */}
         {status === 'DISPUTED' && (
-          <div className="card animate-fade-in" style={{ padding: '20px 24px', background: 'var(--color-error-bg)', border: '1px solid rgba(220,38,38,0.2)' }}>
+          <div className="card animate-fade-in" style={{ padding: '20px 24px', borderLeft: '3px solid var(--color-error)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <XCircle size={28} style={{ color: 'var(--color-error)', flexShrink: 0 }} />
               <div>
@@ -382,7 +382,7 @@ export function SettlementConfirm() {
               </div>
             </div>
             {isPayer && (
-              <p className="caption" style={{ marginTop: 12, padding: '10px 12px', background: 'rgba(220,38,38,0.08)', borderRadius: 'var(--radius-sm)' }}>
+              <p className="caption" style={{ marginTop: 12, padding: '10px 12px', background: 'var(--color-canvas-soft-2)', borderRadius: 'var(--radius-sm)' }}>
                 💡 Try paying via UPI again or reach out to {payee?.full_name} directly.
               </p>
             )}
@@ -395,16 +395,9 @@ export function SettlementConfirm() {
             <button
               onClick={() => setShowConfirmDialog(true)}
               disabled={isProcessing}
-              className="btn btn-lg"
+              className="btn btn-primary btn-lg"
               id="confirm-received-btn"
-              style={{
-                width: '100%',
-                background: 'linear-gradient(135deg, #1a7f4e 0%, #059669 100%)',
-                color: '#fff',
-                border: 'none',
-                fontWeight: 700,
-                boxShadow: '0 2px 8px rgba(5,150,105,0.3)',
-              }}
+              style={{ width: '100%' }}
             >
               <CheckCircle2 size={18} />
               {isProcessing ? 'Processing…' : 'Confirm Received'}
