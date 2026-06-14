@@ -59,8 +59,8 @@ export function GroupDetail() {
   const memberList = members.map((m) => ({ id: m.user_id, name: (m.users as any)?.full_name || 'Unknown' }))
   const netBalances = computeNetBalances(
     memberList,
-    expenses.map((e) => ({
-      paid_by: e.paid_by,
+    expenses.filter(e => !e.is_draft).map((e) => ({
+      paid_by: e.paid_by as string, // Cast since paid_by is now optional but definitely present for non-drafts
       splits: (e.splits || []).map((s: any) => ({ user_id: s.user_id, owed_share: s.owed_share })),
     })),
     settlements
@@ -107,6 +107,9 @@ export function GroupDetail() {
             <Link to={`/groups/${id}/settings`} className="btn btn-secondary btn-sm" id="group-settings-btn">
               <Settings size={14} />
               Settings
+            </Link>
+            <Link to={`/groups/${id}/import`} className="btn btn-secondary btn-sm" id="import-csv-btn">
+              Import CSV
             </Link>
             <Link to={`/groups/${id}/expenses/new`} className="btn btn-primary" id="add-expense-btn">
               <Plus size={16} />
@@ -265,9 +268,14 @@ function ExpensesTab({
                     <div className="card card-hover" style={{ padding: '14px 20px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <p className="title-sm truncate" style={{ marginBottom: 3 }}>{expense.description}</p>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+                            <p className="title-sm truncate" style={{ margin: 0 }}>{expense.description}</p>
+                            {expense.is_draft && (
+                              <span className="badge" style={{ background: 'var(--color-warning)', color: '#fff', fontSize: 10 }}>Needs Review</span>
+                            )}
+                          </div>
                           <p className="caption">
-                            Paid by {(expense.payer as any)?.full_name || '…'}
+                            {expense.is_draft ? 'Payer unknown' : `Paid by ${(expense.payer as any)?.full_name || '…'}`}
                           </p>
                         </div>
                         <div style={{ textAlign: 'right', flexShrink: 0 }}>

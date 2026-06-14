@@ -732,7 +732,7 @@ select.input {
 }
 
 .main-content {
-  background-color: var(--color-canvas-soft);
+  background-color: var(--color-canvas);
   min-height: 100vh;
   overflow-x: hidden;
 }

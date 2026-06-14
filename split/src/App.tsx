@@ -22,6 +22,7 @@ import { SettlementConfirm } from './pages/SettlementConfirm'
 import { SettlementHistory } from './pages/SettlementHistory'
 import { AccountSettings } from './pages/AccountSettings'
 import { InviteAccept } from './pages/InviteAccept'
+import { ImportCSV } from './pages/ImportCSV'
 import { Help } from './pages/Help'
 import { getInitials, formatDate } from './utils/formatters'
 import {
@@ -444,6 +445,11 @@ function AppRoutes() {
       <Route path="/groups/:id/settlement-history" element={
         <ProtectedRoute>
           <AppShell><SettlementHistory /></AppShell>
+        </ProtectedRoute>
+      } />
+      <Route path="/groups/:id/import" element={
+        <ProtectedRoute>
+          <AppShell><ImportCSV /></AppShell>
         </ProtectedRoute>
       } />
       <Route path="/account" element={

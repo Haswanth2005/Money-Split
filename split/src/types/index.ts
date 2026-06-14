@@ -40,7 +40,8 @@ export interface Expense {
   description: string
   amount: number
   currency: string
-  paid_by: string
+  paid_by?: string | null
+  is_draft?: boolean
   split_type: SplitMechanism
   date: string
   created_by: string | null
