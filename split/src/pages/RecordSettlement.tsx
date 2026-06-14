@@ -115,14 +115,6 @@ export function RecordSettlement() {
   const receiverUpi    = receiverUser?.upi_id
   const receiverName   = receiverUser?.full_name || 'Receiver'
 
-  const payerMember = members.find(m => m.user_id === paidBy)
-  const payerName   = (payerMember?.users as any)?.full_name || 'Payer'
-
-  const getUsername = (userId: string) => {
-    const m = members.find(m => m.user_id === userId)
-    return (m?.users as any)?.full_name || 'Unknown'
-  }
-
   // ── Screenshot handlers ──────────────────────────────────────────────────
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
