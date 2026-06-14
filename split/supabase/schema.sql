@@ -10,6 +10,7 @@ create extension if not exists "uuid-ossp";
 create type group_category as enum ('home', 'trip', 'couple', 'other');
 create type split_mechanism as enum ('equal', 'exact', 'percentage', 'shares');
 create type invite_status as enum ('pending', 'accepted', 'expired');
+create type settlement_status as enum ('PENDING', 'AWAITING_CONFIRMATION', 'SETTLED', 'DISPUTED');
 
 -- ── 2. USERS (Profile table linked to auth.users) ────────────────────────────
 create table public.users (
@@ -95,12 +96,30 @@ create table public.settlements (
   group_id uuid references public.groups(id) on delete cascade not null,
   paid_by uuid references public.users(id) on delete restrict not null,
   paid_to uuid references public.users(id) on delete restrict not null,
+  expense_id uuid references public.expenses(id) on delete set null,
   amount numeric(12, 2) not null check (amount > 0),
   note text,
   date date default current_date not null,
+  payment_method text default 'UPI' not null,
+  status settlement_status default 'PENDING'::settlement_status not null,
+  screenshot_url text,
+  claimed_paid_at timestamp with time zone,
+  confirmed_at timestamp with time zone,
   created_by uuid references public.users(id) on delete set null,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  updated_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
+
+-- ── 9a. SETTLEMENTS MIGRATION (run if table already exists) ──────────────────
+-- Run the block below ONLY if you are upgrading an existing database:
+-- alter table public.settlements
+--   add column if not exists expense_id uuid references public.expenses(id) on delete set null,
+--   add column if not exists payment_method text default 'UPI' not null,
+--   add column if not exists status settlement_status default 'PENDING'::settlement_status not null,
+--   add column if not exists screenshot_url text,
+--   add column if not exists claimed_paid_at timestamp with time zone,
+--   add column if not exists confirmed_at timestamp with time zone,
+--   add column if not exists updated_at timestamp with time zone default timezone('utc'::text, now()) not null;
 
 -- ── 10. TRIGGER: Sync auth.users → public.users ──────────────────────────────
 create or replace function public.handle_new_user()
@@ -279,6 +298,12 @@ create policy "Group members can record settlements"
   on public.settlements for insert
   with check (public.is_group_member(group_id, auth.uid()));
 
+create policy "Payer or receiver can update settlement status"
+  on public.settlements for update
+  using (
+    paid_by = auth.uid() or paid_to = auth.uid()
+  );
+
 -- 12h. Group Invites
 alter table public.group_invites enable row level security;
 
@@ -299,7 +324,21 @@ create policy "Invites can be updated by inviter or invitee"
 
 -- ── 13. REALTIME ─────────────────────────────────────────────────────────────
 -- After running this SQL, go to Supabase Dashboard → Database → Replication
--- and enable Realtime for the "expense_comments" table.
+-- and enable Realtime for the "expense_comments" AND "settlements" tables.
+
+-- ── 13a. STORAGE BUCKET for Settlement Screenshots ───────────────────────────
+-- Run in Supabase SQL Editor to create the storage bucket:
+-- insert into storage.buckets (id, name, public)
+-- values ('settlement-screenshots', 'settlement-screenshots', true)
+-- on conflict (id) do nothing;
+--
+-- create policy "Authenticated users can upload settlement screenshots"
+--   on storage.objects for insert
+--   with check (bucket_id = 'settlement-screenshots' and auth.role() = 'authenticated');
+--
+-- create policy "Settlement screenshots are publicly readable"
+--   on storage.objects for select
+--   using (bucket_id = 'settlement-screenshots');
 
 -- ── 14. INDEXES ──────────────────────────────────────────────────────────────
 create index if not exists idx_group_members_group_id on public.group_members(group_id);
@@ -309,5 +348,8 @@ create index if not exists idx_expenses_deleted_at on public.expenses(deleted_at
 create index if not exists idx_expense_splits_expense_id on public.expense_splits(expense_id);
 create index if not exists idx_expense_comments_expense_id on public.expense_comments(expense_id);
 create index if not exists idx_settlements_group_id on public.settlements(group_id);
+create index if not exists idx_settlements_paid_by on public.settlements(paid_by);
+create index if not exists idx_settlements_paid_to on public.settlements(paid_to);
+create index if not exists idx_settlements_status on public.settlements(status);
 create index if not exists idx_group_invites_token on public.group_invites(token);
 create index if not exists idx_group_invites_email on public.group_invites(email);

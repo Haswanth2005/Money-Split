@@ -3,6 +3,7 @@
 export type GroupCategory = 'home' | 'trip' | 'couple' | 'other'
 export type SplitMechanism = 'equal' | 'exact' | 'percentage' | 'shares'
 export type InviteStatus = 'pending' | 'accepted' | 'expired'
+export type SettlementStatus = 'PENDING' | 'AWAITING_CONFIRMATION' | 'SETTLED' | 'DISPUTED'
 
 export interface User {
   id: string
@@ -88,11 +89,18 @@ export interface Settlement {
   group_id: string
   paid_by: string
   paid_to: string
+  expense_id?: string | null
   amount: number
   note: string | null
   date: string
+  payment_method: string
+  status: SettlementStatus
+  screenshot_url?: string | null
+  claimed_paid_at?: string | null
+  confirmed_at?: string | null
   created_by: string | null
   created_at: string
+  updated_at: string
   // Joined
   payer?: User
   payee?: User

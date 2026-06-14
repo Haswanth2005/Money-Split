@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { supabase } from '../supabaseClient'
 import { useAuth } from '../contexts/AuthContext'
-import { ArrowLeft, Camera, Trash2, Plus, AlertCircle } from 'lucide-react'
+import { ArrowLeft, Camera, AlertCircle } from 'lucide-react'
 import { todayISO, formatCurrency } from '../utils/formatters'
 import {
   splitEqually, splitExact, splitByPercentage, splitByShares,
@@ -32,9 +32,15 @@ interface ParticipantSplit {
 }
 
 export function ExpenseCreate() {
-  const { id: groupId } = useParams<{ id: string }>()
+  const { id: routeGroupId } = useParams<{ id: string }>()
   const { user } = useAuth()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+
+  const [selectedGroupId, setSelectedGroupId] = useState(routeGroupId || '')
+  const [groupSearchInput, setGroupSearchInput] = useState('')
+  const [showGroupResults, setShowGroupResults] = useState(false)
+
   const [serverError, setServerError] = useState('')
   const [splitError, setSplitError] = useState('')
 
@@ -46,24 +52,42 @@ export function ExpenseCreate() {
   const [itemShares, setItemShares] = useState<Record<number, string[]>>({})
   const [appliedItems, setAppliedItems] = useState<any[] | null>(null)
 
-  const { data: members = [] } = useQuery({
-    queryKey: ['group-members', groupId],
+  // Fetch user's groups for search selector
+  const { data: groups = [] } = useQuery({
+    queryKey: ['all-user-groups', user?.id],
     queryFn: async () => {
+      if (!user?.id) return []
+      const { data } = await supabase
+        .from('group_members')
+        .select('groups(id, name)')
+        .eq('user_id', user.id)
+      return (data || []).map((r: any) => r.groups).filter(Boolean) as { id: string; name: string }[]
+    },
+    enabled: !routeGroupId && !!user?.id,
+  })
+
+  // Fetch selected group members
+  const { data: members = [] } = useQuery({
+    queryKey: ['group-members', selectedGroupId],
+    queryFn: async () => {
+      if (!selectedGroupId) return []
       const { data } = await supabase
         .from('group_members')
         .select('*, users(id, email, full_name)')
-        .eq('group_id', groupId!)
+        .eq('group_id', selectedGroupId)
       return (data || []) as GroupMember[]
     },
-    enabled: !!groupId,
+    enabled: !!selectedGroupId,
   })
+
+  const defaultDate = searchParams.get('date') || todayISO()
 
   const { register, handleSubmit, watch, setValue, formState: { errors, isSubmitting } } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
       split_type: 'equal',
       paid_by: user?.id || '',
-      date: todayISO(),
+      date: defaultDate,
     },
   })
 
@@ -79,8 +103,30 @@ export function ExpenseCreate() {
         const u = m.users as any
         return { userId: m.user_id, name: u?.full_name || 'Unknown', included: true, value: 1 }
       }))
+      // Set paid_by default
+      const hasMe = members.some((m) => m.user_id === user?.id)
+      setValue('paid_by', hasMe ? (user?.id || '') : (members[0]?.user_id || ''))
+    } else {
+      setParticipants((prev) => prev.length > 0 ? [] : prev)
     }
-  }, [members.length])
+  }, [members.length, user?.id, setValue])
+
+  // Initialize groupSearchInput if routeGroupId was passed
+  const { data: routeGroup } = useQuery({
+    queryKey: ['route-group', routeGroupId],
+    queryFn: async () => {
+      if (!routeGroupId) return null
+      const { data } = await supabase.from('groups').select('id, name').eq('id', routeGroupId).single()
+      return data
+    },
+    enabled: !!routeGroupId,
+  })
+
+  useEffect(() => {
+    if (routeGroup) {
+      setGroupSearchInput(routeGroup.name)
+    }
+  }, [routeGroup])
 
   const handleSplitTypeChange = (type: SplitMechanism) => {
     setValue('split_type', type)
@@ -98,7 +144,7 @@ export function ExpenseCreate() {
   const validateSplit = (): boolean => {
     if (includedCount === 0) { setSplitError('Select at least one participant'); return false }
     if (splitType === 'exact' && !validateExactSplit(participants.filter(p => p.included).map(p => p.value), amount)) {
-      setSplitError(`Shares must add up to ${formatCurrency(amount)}. Currently ${formatCurrency(totalAssigned)}.`)
+      setSplitError(`Amounts must add up to ₹${amount.toFixed(2)}. Currently ₹${totalAssigned.toFixed(2)}.`)
       return false
     }
     if (splitType === 'percentage' && !validatePercentageSplit(participants.filter(p => p.included).map(p => p.value))) {
@@ -110,6 +156,10 @@ export function ExpenseCreate() {
   }
 
   const onSubmit = async (values: FormValues) => {
+    if (!selectedGroupId) {
+      setServerError('Please select a group first')
+      return
+    }
     if (!validateSplit()) return
     setServerError('')
 
@@ -128,7 +178,7 @@ export function ExpenseCreate() {
 
     // Insert expense
     const { data: expense, error } = await supabase.from('expenses').insert({
-      group_id: groupId,
+      group_id: selectedGroupId,
       description: values.description,
       amount: values.amount,
       currency: 'INR',
@@ -152,7 +202,7 @@ export function ExpenseCreate() {
     )
 
     if (splitErr) { setServerError(splitErr.message); return }
-    navigate(`/groups/${groupId}/expenses/${expense.id}`)
+    navigate(`/groups/${selectedGroupId}/expenses/${expense.id}`)
   }
 
   const updateParticipant = (userId: string, field: 'included' | 'value', val: boolean | number) => {
@@ -199,7 +249,7 @@ export function ExpenseCreate() {
         // Default everyone to share all items
         const initialShares: Record<number, string[]> = {}
         const allUserIds = members.map(m => m.user_id)
-        demo.items.forEach((_, idx) => {
+        demo.items.forEach((_: any, idx: number) => {
           initialShares[idx] = [...allUserIds]
         })
         setItemShares(initialShares)
@@ -215,7 +265,7 @@ export function ExpenseCreate() {
         setScannedBill(data)
         const initialShares: Record<number, string[]> = {}
         const allUserIds = members.map(m => m.user_id)
-        data.items.forEach((_, idx) => {
+        data.items.forEach((_: any, idx: number) => {
           initialShares[idx] = [...allUserIds]
         })
         setItemShares(initialShares)
@@ -314,7 +364,7 @@ export function ExpenseCreate() {
     const roundedTotals: Record<string, number> = {}
     let sumRounded = 0
     const activeUids = Object.keys(memberTotals).filter(uid => memberTotals[uid] > 0)
-    
+
     activeUids.forEach(uid => {
       roundedTotals[uid] = +memberTotals[uid].toFixed(2)
       sumRounded += roundedTotals[uid]
@@ -338,7 +388,7 @@ export function ExpenseCreate() {
   const applyBillToExpense = () => {
     if (!scannedBill) return
     const splits = calculateSplitsFromBill()
-    
+
     // Set form fields
     setValue('amount', scannedBill.grandTotal)
     setValue('description', scannedBill.merchant || 'Scanned Bill')
@@ -376,150 +426,230 @@ export function ExpenseCreate() {
 
       <div className="page-body">
         <form onSubmit={handleSubmit(onSubmit)} noValidate>
-          <div className="card" style={{ marginBottom: 20 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <h2 className="title-sm" style={{ marginBottom: 0 }}>Details</h2>
-              <button
-                type="button"
-                onClick={() => setShowScanner(true)}
-                className="btn btn-ghost btn-sm"
-                style={{ color: 'var(--color-primary)', display: 'flex', alignItems: 'center', gap: 6, padding: '4px 8px' }}
-              >
-                <Camera size={15} /> Scan Bill
-              </button>
-            </div>
-
-            <div style={{ marginBottom: 18 }}>
-              <label className="form-label" htmlFor="expense-desc">Description</label>
-              <input id="expense-desc" type="text" className={`input ${errors.description ? 'input-error' : ''}`}
-                placeholder="e.g. Dinner at Pista House" {...register('description')} />
-              {errors.description && <p className="form-error">{errors.description.message}</p>}
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 18 }}>
-              <div>
-                <label className="form-label" htmlFor="expense-amount">Amount (₹)</label>
-                <input id="expense-amount" type="number" min="0.01" step="0.01"
-                  className={`input mono ${errors.amount ? 'input-error' : ''}`}
-                  placeholder="0.00" {...register('amount', { valueAsNumber: true })} />
-                {errors.amount && <p className="form-error">{errors.amount.message}</p>}
+          {/* Group Search / Selection */}
+          <div className="card" style={{ marginBottom: 20, overflow: 'visible' }}>
+            <h2 className="title-sm" style={{ marginBottom: 16 }}>Group</h2>
+            {routeGroupId ? (
+              <div style={{ padding: '10px 12px', background: 'var(--color-canvas)', border: '1px solid var(--color-hairline)', borderRadius: 'var(--radius-md)', fontSize: 14, fontWeight: 500, color: 'var(--color-ink)' }}>
+                {groupSearchInput || 'Loading group…'}
               </div>
-              <div>
-                <label className="form-label" htmlFor="expense-date">Date</label>
-                <input id="expense-date" type="date" className="input" {...register('date')} />
-              </div>
-            </div>
-
-            <div>
-              <label className="form-label" htmlFor="expense-paidby">Paid by</label>
-              <select id="expense-paidby" className="input" {...register('paid_by')}>
-                {members.map((m) => {
-                  const u = m.users as any
-                  return <option key={m.user_id} value={m.user_id}>{u?.full_name || u?.email}</option>
-                })}
-              </select>
-              {errors.paid_by && <p className="form-error">{errors.paid_by.message}</p>}
-            </div>
-          </div>
-
-          {/* Split type */}
-          <div className="card" style={{ marginBottom: 20 }}>
-            <h2 className="title-sm" style={{ marginBottom: 16 }}>Split type</h2>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 24 }}>
-              {(['equal', 'exact', 'percentage', 'shares'] as SplitMechanism[]).map((t) => (
-                <button key={t} type="button"
-                  onClick={() => handleSplitTypeChange(t)}
-                  style={{
-                    padding: '10px 8px', borderRadius: 'var(--radius-md)',
-                    border: splitType === t ? '2px solid var(--color-primary)' : '1px solid var(--color-hairline)',
-                    background: splitType === t ? 'rgba(245,78,0,0.04)' : 'var(--color-surface-card)',
-                    cursor: 'pointer', textAlign: 'center', fontSize: 13, fontWeight: 500,
-                    color: splitType === t ? 'var(--color-primary)' : 'var(--color-ink)',
-                    transition: 'all 120ms',
+            ) : (
+              <div style={{ position: 'relative' }}>
+                <input
+                  type="text"
+                  placeholder="Search groups..."
+                  className="input"
+                  value={groupSearchInput}
+                  onChange={(e) => {
+                    setGroupSearchInput(e.target.value)
+                    setShowGroupResults(true)
+                  }}
+                  onFocus={() => setShowGroupResults(true)}
+                  onBlur={() => {
+                    // Slight delay to allow item click
+                    setTimeout(() => setShowGroupResults(false), 200)
+                  }}
+                />
+                {showGroupResults && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    background: 'var(--color-surface-card)',
+                    border: '1px solid var(--color-hairline)',
+                    borderRadius: 'var(--radius-md)',
+                    zIndex: 100,
+                    maxHeight: '200px',
+                    overflowY: 'auto',
+                    marginTop: '4px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
                   }}>
-                  {t === 'equal' ? '÷ Equal' : t === 'exact' ? '₹ Exact' : t === 'percentage' ? '% Percent' : '⊛ Shares'}
-                </button>
-              ))}
-            </div>
-
-            {/* Participants & values */}
-            <div>
-              <p className="form-label" style={{ marginBottom: 12 }}>
-                Participants
-                {splitType === 'exact' && amount > 0 && (
-                  <span style={{ fontWeight: 400, color: totalAssigned !== amount ? 'var(--color-error)' : 'var(--color-success)', marginLeft: 8 }}>
-                    {formatCurrency(totalAssigned)} / {formatCurrency(amount)}
-                  </span>
-                )}
-                {splitType === 'percentage' && (
-                  <span style={{ fontWeight: 400, color: Math.abs(totalAssigned - 100) > 0.01 ? 'var(--color-error)' : 'var(--color-success)', marginLeft: 8 }}>
-                    {totalAssigned.toFixed(1)}% / 100%
-                  </span>
-                )}
-              </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {participants.map((p) => (
-                  <div key={p.userId} style={{
-                    display: 'flex', alignItems: 'center', gap: 12,
-                    padding: '10px 14px', borderRadius: 'var(--radius-md)',
-                    background: p.included ? 'var(--color-canvas-soft)' : 'transparent',
-                    border: '1px solid var(--color-hairline)', transition: 'background 120ms',
-                  }}>
-                    <input
-                      type="checkbox" id={`p-${p.userId}`}
-                      checked={p.included}
-                      onChange={(e) => updateParticipant(p.userId, 'included', e.target.checked)}
-                      style={{ width: 16, height: 16, accentColor: 'var(--color-primary)', flexShrink: 0 }}
-                    />
-                    <label htmlFor={`p-${p.userId}`} style={{ flex: 1, fontSize: 14, fontWeight: 500, color: 'var(--color-ink)', cursor: 'pointer' }}>
-                      {p.name}{p.userId === user?.id ? ' (you)' : ''}
-                    </label>
-
-                    {splitType !== 'equal' && p.included && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                        {splitType === 'percentage' && <span style={{ fontSize: 13, color: 'var(--color-muted)' }}>%</span>}
-                        {splitType === 'exact' && <span style={{ fontSize: 13, color: 'var(--color-muted)' }}>₹</span>}
-                        {splitType === 'shares' && <span style={{ fontSize: 13, color: 'var(--color-muted)' }}>×</span>}
-                        <input
-                          type="number" min="0" step={splitType === 'shares' ? '1' : '0.01'}
-                          value={p.value}
-                          onChange={(e) => updateParticipant(p.userId, 'value', +e.target.value)}
-                          style={{ width: 80, padding: '6px 10px', borderRadius: 6, border: '1px solid var(--color-hairline)', fontSize: 14, textAlign: 'right', fontFamily: 'var(--font-mono)' }}
-                        />
-                        {splitType === 'shares' && amount > 0 && includedCount > 0 ? (
-                          <span style={{ fontSize: 12, color: 'var(--color-muted)', width: 60, textAlign: 'right' }}>
-                            {formatCurrency((p.value / participants.filter(pp => pp.included).reduce((s, pp) => s + pp.value, 0)) * amount)}
-                          </span>
-                        ) : null}
+                    {groups
+                      .filter(g => g.name.toLowerCase().includes(groupSearchInput.toLowerCase()))
+                      .map(g => (
+                        <div
+                          key={g.id}
+                          onMouseDown={() => {
+                            setSelectedGroupId(g.id)
+                            setGroupSearchInput(g.name)
+                            setShowGroupResults(false)
+                          }}
+                          style={{
+                            padding: '10px 14px',
+                            cursor: 'pointer',
+                            fontSize: '13px',
+                            color: 'var(--color-ink)',
+                            borderBottom: '1px solid var(--color-hairline-soft)',
+                            background: selectedGroupId === g.id ? 'var(--color-canvas)' : 'transparent',
+                          }}
+                        >
+                          {g.name}
+                        </div>
+                      ))}
+                    {groups.filter(g => g.name.toLowerCase().includes(groupSearchInput.toLowerCase())).length === 0 && (
+                      <div style={{ padding: '10px 14px', color: 'var(--color-muted)', fontSize: '13px' }}>
+                        No groups found
                       </div>
                     )}
-                    {splitType === 'equal' && p.included && amount > 0 && includedCount > 0 && (
-                      <span className="caption mono">{formatCurrency(amount / includedCount)}</span>
-                    )}
                   </div>
-                ))}
+                )}
               </div>
-            </div>
-
-            {splitError && <p className="form-error" style={{ marginTop: 12 }}>{splitError}</p>}
+            )}
           </div>
 
-          {serverError && (
-            <div style={{
-              background: 'var(--color-error-bg)', color: 'var(--color-error)',
-              padding: '10px 14px', borderRadius: 'var(--radius-md)', fontSize: 14, marginBottom: 20,
-            }}>
-              {serverError}
+          {selectedGroupId ? (
+            <>
+              <div className="card" style={{ marginBottom: 20 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                  <h2 className="title-sm" style={{ marginBottom: 0 }}>Details</h2>
+                  <button
+                    type="button"
+                    onClick={() => setShowScanner(true)}
+                    className="btn btn-ghost btn-sm"
+                    style={{ color: 'var(--color-primary)', display: 'flex', alignItems: 'center', gap: 6, padding: '4px 8px' }}
+                  >
+                    <Camera size={15} /> Scan Bill
+                  </button>
+                </div>
+
+                <div style={{ marginBottom: 18 }}>
+                  <label className="form-label" htmlFor="expense-desc">Description</label>
+                  <input id="expense-desc" type="text" className={`input ${errors.description ? 'input-error' : ''}`}
+                    placeholder="e.g. Dinner at Pista House" {...register('description')} />
+                  {errors.description && <p className="form-error">{errors.description.message}</p>}
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 18 }}>
+                  <div>
+                    <label className="form-label" htmlFor="expense-amount">Amount (₹)</label>
+                    <input id="expense-amount" type="number" min="0.01" step="0.01"
+                      className={`input mono ${errors.amount ? 'input-error' : ''}`}
+                      placeholder="0.00" {...register('amount', { valueAsNumber: true })} />
+                    {errors.amount && <p className="form-error">{errors.amount.message}</p>}
+                  </div>
+                  <div>
+                    <label className="form-label" htmlFor="expense-date">Date</label>
+                    <input id="expense-date" type="date" className="input" {...register('date')} />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="form-label" htmlFor="expense-paidby">Paid by</label>
+                  <select id="expense-paidby" className="input" {...register('paid_by')}>
+                    {members.map((m) => {
+                      const u = m.users as any
+                      return <option key={m.user_id} value={m.user_id}>{u?.full_name || u?.email}</option>
+                    })}
+                  </select>
+                  {errors.paid_by && <p className="form-error">{errors.paid_by.message}</p>}
+                </div>
+              </div>
+
+              {/* Split type */}
+              <div className="card" style={{ marginBottom: 20 }}>
+                <h2 className="title-sm" style={{ marginBottom: 16 }}>Split type</h2>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 24 }}>
+                  {(['equal', 'exact', 'percentage', 'shares'] as SplitMechanism[]).map((t) => (
+                    <button key={t} type="button"
+                      onClick={() => handleSplitTypeChange(t)}
+                      style={{
+                        padding: '10px 8px', borderRadius: 'var(--radius-md)',
+                        border: splitType === t ? '2px solid var(--color-primary)' : '1px solid var(--color-hairline)',
+                        background: splitType === t ? 'rgba(245,78,0,0.04)' : 'var(--color-surface-card)',
+                        cursor: 'pointer', textAlign: 'center', fontSize: 13, fontWeight: 500,
+                        color: splitType === t ? 'var(--color-primary)' : 'var(--color-ink)',
+                        transition: 'all 120ms',
+                      }}>
+                      {t === 'equal' ? '÷ Equal' : t === 'exact' ? '₹ Exact' : t === 'percentage' ? '% Percent' : '⊛ Shares'}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Participants & values */}
+                <div>
+                  <p className="form-label" style={{ marginBottom: 12 }}>
+                    Participants
+                    {splitType === 'exact' && amount > 0 && (
+                      <span style={{ fontWeight: 400, color: totalAssigned !== amount ? 'var(--color-error)' : 'var(--color-success)', marginLeft: 8 }}>
+                        {formatCurrency(totalAssigned)} / {formatCurrency(amount)}
+                      </span>
+                    )}
+                    {splitType === 'percentage' && (
+                      <span style={{ fontWeight: 400, color: Math.abs(totalAssigned - 100) > 0.01 ? 'var(--color-error)' : 'var(--color-success)', marginLeft: 8 }}>
+                        {totalAssigned.toFixed(1)}% / 100%
+                      </span>
+                    )}
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {participants.map((p) => (
+                      <div key={p.userId} style={{
+                        display: 'flex', alignItems: 'center', gap: 12,
+                        padding: '10px 14px', borderRadius: 'var(--radius-md)',
+                        background: p.included ? 'var(--color-canvas-soft)' : 'transparent',
+                        border: '1px solid var(--color-hairline)', transition: 'background 120ms',
+                      }}>
+                        <input
+                          type="checkbox" id={`p-${p.userId}`}
+                          checked={p.included}
+                          onChange={(e) => updateParticipant(p.userId, 'included', e.target.checked)}
+                          style={{ width: 16, height: 16, accentColor: 'var(--color-primary)', flexShrink: 0 }}
+                        />
+                        <label htmlFor={`p-${p.userId}`} style={{ flex: 1, fontSize: 14, fontWeight: 500, color: 'var(--color-ink)', cursor: 'pointer' }}>
+                          {p.name}{p.userId === user?.id ? ' (you)' : ''}
+                        </label>
+
+                        {splitType !== 'equal' && p.included && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                            {splitType === 'percentage' && <span style={{ fontSize: 13, color: 'var(--color-muted)' }}>%</span>}
+                            {splitType === 'exact' && <span style={{ fontSize: 13, color: 'var(--color-muted)' }}>₹</span>}
+                            {splitType === 'shares' && <span style={{ fontSize: 13, color: 'var(--color-muted)' }}>×</span>}
+                            <input
+                              type="number" min="0" step={splitType === 'shares' ? '1' : '0.01'}
+                              value={p.value}
+                              onChange={(e) => updateParticipant(p.userId, 'value', +e.target.value)}
+                              style={{ width: 80, padding: '6px 10px', borderRadius: 6, border: '1px solid var(--color-hairline)', fontSize: 14, textAlign: 'right', fontFamily: 'var(--font-mono)' }}
+                            />
+                            {splitType === 'shares' && amount > 0 && includedCount > 0 ? (
+                              <span style={{ fontSize: 12, color: 'var(--color-muted)', width: 60, textAlign: 'right' }}>
+                                {formatCurrency((p.value / participants.filter(pp => pp.included).reduce((s, pp) => s + pp.value, 0)) * amount)}
+                              </span>
+                            ) : null}
+                          </div>
+                        )}
+                        {splitType === 'equal' && p.included && amount > 0 && includedCount > 0 && (
+                          <span className="caption mono">{formatCurrency(amount / includedCount)}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {splitError && <p className="form-error" style={{ marginTop: 12 }}>{splitError}</p>}
+              </div>
+
+              {serverError && (
+                <div style={{
+                  background: 'var(--color-error-bg)', color: 'var(--color-error)',
+                  padding: '10px 14px', borderRadius: 'var(--radius-md)', fontSize: 14, marginBottom: 20,
+                }}>
+                  {serverError}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: 12 }}>
+                <button type="button" onClick={() => navigate(-1)} className="btn btn-secondary">Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
+                  {isSubmitting ? 'Saving…' : 'Save expense'}
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="card" style={{ padding: '24px', textAlign: 'center', color: 'var(--color-muted)', fontSize: '13px' }}>
+              Please search and select a group from the field above to add your expense.
             </div>
           )}
-
-          <div style={{ display: 'flex', gap: 12 }}>
-            <button type="button" onClick={() => navigate(-1)} className="btn btn-secondary">Cancel</button>
-            <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
-              {isSubmitting ? 'Saving…' : 'Save expense'}
-            </button>
-          </div>
         </form>
       </div>
 
@@ -538,9 +668,9 @@ export function ExpenseCreate() {
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
               <h3 className="title-md">Scan Bill / Receipt</h3>
-              <button 
-                type="button" 
-                onClick={() => { setShowScanner(false); setScannedBill(null); }} 
+              <button
+                type="button"
+                onClick={() => { setShowScanner(false); setScannedBill(null); }}
                 className="btn btn-ghost btn-sm"
                 style={{ fontSize: 18 }}
               >
@@ -600,8 +730,8 @@ export function ExpenseCreate() {
                   animation: 'spin 1s linear infinite', margin: '0 auto 16px'
                 }} />
                 <p style={{ fontSize: 14, fontWeight: 500, color: 'var(--color-ink)' }}>
-                  {localStorage.getItem('money_split_groq_api_key') 
-                    ? 'AI is reading your bill items…' 
+                  {localStorage.getItem('money_split_groq_api_key')
+                    ? 'AI is reading your bill items…'
                     : 'Loading demo receipt table…'}
                 </p>
               </div>
@@ -622,7 +752,7 @@ export function ExpenseCreate() {
                 </div>
 
                 <p className="form-label" style={{ marginBottom: 10 }}>Select who shared each item:</p>
-                
+
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
                   {scannedBill.items.map((item, idx) => {
                     const sharers = itemShares[idx] || []

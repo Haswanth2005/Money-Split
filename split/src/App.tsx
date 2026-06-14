@@ -1,6 +1,6 @@
 
 import { useState } from 'react'
-import { BrowserRouter, Routes, Route, Navigate, NavLink } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, NavLink, useSearchParams } from 'react-router-dom'
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import { supabase } from './supabaseClient'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
@@ -17,10 +17,12 @@ import { ExpenseCreate } from './pages/ExpenseCreate'
 import { ExpenseDetail } from './pages/ExpenseDetail'
 import { ExpenseEdit } from './pages/ExpenseEdit'
 import { RecordSettlement } from './pages/RecordSettlement'
+import { SettlementConfirm } from './pages/SettlementConfirm'
+import { SettlementHistory } from './pages/SettlementHistory'
 import { AccountSettings } from './pages/AccountSettings'
 import { InviteAccept } from './pages/InviteAccept'
 import { Help } from './pages/Help'
-import { getInitials } from './utils/formatters'
+import { getInitials, formatDate } from './utils/formatters'
 import {
   LayoutDashboard,
   Settings,
@@ -29,12 +31,12 @@ import {
   Wallet,
   Home,
   UserCircle2,
-  Pin,
   ChevronLeft,
   Menu,
   User,
   HelpCircle,
   ChevronRight,
+  Filter,
 } from 'lucide-react'
 
 const queryClient = new QueryClient({
@@ -46,18 +48,49 @@ const queryClient = new QueryClient({
   },
 })
 
+// Helpers for date calculations in local time
+function getLocalDateString(dateStr: string) {
+  const d = new Date(dateStr)
+  const yyyy = d.getFullYear()
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}`
+}
+
+function getLocalTodayString() {
+  const d = new Date()
+  const yyyy = d.getFullYear()
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}`
+}
+
+function getLocalYesterdayString() {
+  const d = new Date()
+  d.setDate(d.getDate() - 1)
+  const yyyy = d.getFullYear()
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}`
+}
+
+function getGroupDateHeader(dateStr: string) {
+  const localDate = getLocalDateString(dateStr)
+  if (localDate === getLocalTodayString()) {
+    return 'Today'
+  }
+  if (localDate === getLocalYesterdayString()) {
+    return 'Yesterday'
+  }
+  return formatDate(dateStr)
+}
+
 // ─── Sidebar Navigation ────────────────────────────────────────────────────────
 function Sidebar({ onCollapse }: { onCollapse: () => void }) {
   const { profile, signOut } = useAuth()
   const [menuOpen, setMenuOpen] = useState(false)
-  const [pinnedIds, setPinnedIds] = useState<string[]>(() => {
-    try {
-      const stored = localStorage.getItem('splitapp-pinned-groups')
-      return stored ? JSON.parse(stored) : []
-    } catch {
-      return []
-    }
-  })
+  const [searchParams, setSearchParams] = useSearchParams()
+  const searchDate = searchParams.get('date')
 
   // Fetch all groups the user is part of
   const { data: groups = [] } = useQuery({
@@ -66,48 +99,53 @@ function Sidebar({ onCollapse }: { onCollapse: () => void }) {
       if (!profile?.id) return []
       const { data } = await supabase
         .from('group_members')
-        .select('groups(id, name)')
+        .select('groups(id, name, created_at)')
         .eq('user_id', profile.id)
-      return (data || []).map((r: any) => r.groups).filter(Boolean) as { id: string; name: string }[]
+      return (data || []).map((r: any) => r.groups).filter(Boolean) as { id: string; name: string; created_at: string }[]
     },
     enabled: !!profile?.id,
   })
 
-  const togglePin = (groupId: string, e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setPinnedIds((prev) => {
-      const next = prev.includes(groupId)
-        ? prev.filter((id) => id !== groupId)
-        : [...prev, groupId]
-      localStorage.setItem('splitapp-pinned-groups', JSON.stringify(next))
-      return next
-    })
-  }
+  // Filter groups by date if query param is set
+  const filteredGroups = searchDate
+    ? groups.filter((g) => getLocalDateString(g.created_at) === searchDate)
+    : groups
 
-  const pinnedGroups = groups.filter((g) => pinnedIds.includes(g.id))
-  const unpinnedGroups = groups.filter((g) => !pinnedIds.includes(g.id))
+  // Sort groups by creation date descending
+  const sortedGroups = [...filteredGroups].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  )
+
+  // Group the groups by date header label
+  const grouped: { [key: string]: typeof groups } = {}
+  sortedGroups.forEach((g) => {
+    const header = getGroupDateHeader(g.created_at)
+    if (!grouped[header]) {
+      grouped[header] = []
+    }
+    grouped[header].push(g)
+  })
 
   return (
     <aside className="sidebar">
       <div className="sidebar-header">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{
-              width: 32, height: 32, borderRadius: 8,
+              width: 32, height: 32, borderRadius: 'var(--radius-sm)',
               background: 'var(--color-primary)', display: 'flex',
               alignItems: 'center', justifyContent: 'center',
+              border: '1px solid var(--color-hairline)',
             }}>
-              <Wallet size={16} color="#fff" />
+              <Wallet size={16} color="var(--color-on-primary)" />
             </div>
-            <span style={{ fontWeight: 600, fontSize: 15, color: 'var(--color-ink)' }}>SplitApp</span>
+            <span style={{ fontWeight: 600, fontSize: 16, color: 'var(--color-ink)', letterSpacing: '-0.5px' }}>SplitEasy</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <ThemeToggle />
             <button
               onClick={onCollapse}
               className="theme-toggle"
-              style={{ border: 'none' }}
               title="Collapse sidebar"
               aria-label="Collapse sidebar"
             >
@@ -127,58 +165,67 @@ function Sidebar({ onCollapse }: { onCollapse: () => void }) {
           New Group
         </NavLink>
 
-        {/* Pinned Groups Section */}
-        {pinnedGroups.length > 0 && (
-          <>
-            <div className="nav-section-label" style={{ marginTop: 8 }}>Pinned</div>
-            {pinnedGroups.map((g) => (
-              <NavLink
-                key={g.id}
-                to={`/groups/${g.id}`}
-                className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-                style={{ justifyContent: 'space-between', paddingRight: 8 }}
-              >
-                <span className="truncate" style={{ flex: 1 }}>{g.name}</span>
-                <button
-                  onClick={(e) => togglePin(g.id, e)}
-                  style={{
-                    background: 'none', border: 'none', cursor: 'pointer',
-                    color: 'var(--color-primary)', display: 'flex', padding: 4,
-                  }}
-                  title="Unpin group"
-                >
-                  <Pin size={12} fill="var(--color-primary)" />
-                </button>
-              </NavLink>
-            ))}
-          </>
+        {/* Date Filter Status */}
+        {searchDate && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '8px 12px',
+            background: 'var(--color-canvas-soft-2)',
+            border: '1px solid var(--color-hairline)',
+            borderRadius: 'var(--radius-sm)',
+            margin: '8px 24px 12px 24px',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+              <Filter size={12} style={{ color: 'var(--color-success)', flexShrink: 0 }} />
+              <span style={{ fontSize: 11, color: 'var(--color-ink)', fontWeight: 500 }} className="truncate">
+                {searchDate}
+              </span>
+            </div>
+            <button
+              onClick={() => {
+                const nextParams = new URLSearchParams(searchParams)
+                nextParams.delete('date')
+                setSearchParams(nextParams)
+              }}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--color-error)',
+                fontSize: 11,
+                fontWeight: 600,
+                cursor: 'pointer',
+                padding: '2px 4px',
+              }}
+            >
+              Clear
+            </button>
+          </div>
         )}
 
-        {/* All/Other Groups Section */}
-        {unpinnedGroups.length > 0 && (
-          <>
-            <div className="nav-section-label" style={{ marginTop: 8 }}>Groups</div>
-            {unpinnedGroups.map((g) => (
-              <NavLink
-                key={g.id}
-                to={`/groups/${g.id}`}
-                className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-                style={{ justifyContent: 'space-between', paddingRight: 8 }}
-              >
-                <span className="truncate" style={{ flex: 1 }}>{g.name}</span>
-                <button
-                  onClick={(e) => togglePin(g.id, e)}
-                  style={{
-                    background: 'none', border: 'none', cursor: 'pointer',
-                    color: 'var(--color-muted)', display: 'flex', padding: 4,
-                  }}
-                  title="Pin group"
+        {/* Render Grouped Groups */}
+        {Object.keys(grouped).length > 0 ? (
+          Object.entries(grouped).map(([dateHeader, groupList]) => (
+            <div key={dateHeader} style={{ marginBottom: 14 }}>
+              <div className="nav-section-label" style={{ marginTop: 0, marginBottom: 4 }}>
+                {dateHeader}
+              </div>
+              {groupList.map((g) => (
+                <NavLink
+                  key={g.id}
+                  to={`/groups/${g.id}`}
+                  className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
                 >
-                  <Pin size={12} />
-                </button>
-              </NavLink>
-            ))}
-          </>
+                  <span className="truncate" style={{ flex: 1 }}>{g.name}</span>
+                </NavLink>
+              ))}
+            </div>
+          ))
+        ) : (
+          <div style={{ padding: '12px 24px', color: 'var(--color-muted)', fontSize: 12, textAlign: 'left' }}>
+            {searchDate ? 'No groups on this date' : 'No groups yet'}
+          </div>
         )}
 
         <div className="nav-section-label" style={{ marginTop: 8 }}>Account</div>
@@ -188,41 +235,40 @@ function Sidebar({ onCollapse }: { onCollapse: () => void }) {
         </NavLink>
       </nav>
 
-      <div style={{ position: 'relative', padding: '12px', borderTop: '1px solid var(--color-hairline-soft)' }}>
+      <div style={{ position: 'relative', padding: '16px 24px', borderTop: '1px solid var(--color-hairline)' }}>
         {menuOpen && (
-          <div className="user-dropdown-menu animate-fade-in">
+          <div className="user-dropdown-menu animate-fade-in" style={{ bottom: 'calc(100% + 12px)', left: 16, right: 16, background: 'var(--color-canvas)', border: '1px solid var(--color-hairline)', boxShadow: '0px 4px 12px rgba(0,0,0,0.1)' }}>
             {/* Header: Profile Link */}
             <NavLink
               to="/account"
               onClick={() => setMenuOpen(false)}
               style={{
                 display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
-                borderRadius: 'var(--radius-md)', textDecoration: 'none', borderBottom: '1px solid var(--color-hairline-soft)',
+                borderRadius: 'var(--radius-sm)', textDecoration: 'none', borderBottom: '1px solid var(--color-hairline)',
                 marginBottom: 4, width: '100%', justifyContent: 'space-between',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                <div className="avatar avatar-sm" style={{ backgroundColor: 'var(--color-primary)', color: '#fff', fontSize: 11 }}>
+                <div className="avatar avatar-sm" style={{ backgroundColor: 'var(--color-primary)', color: 'var(--color-on-primary)', fontSize: 11 }}>
                   {profile ? getInitials(profile.full_name) : '…'}
                 </div>
                 <div style={{ minWidth: 0 }}>
                   <p className="body-sm text-ink truncate" style={{ fontWeight: 600, fontSize: 13, marginBottom: 1 }}>{profile?.full_name || '…'}</p>
-                  <p className="caption truncate" style={{ fontSize: 11 }}>Go</p>
                 </div>
               </div>
               <ChevronRight size={14} style={{ color: 'var(--color-muted)' }} />
             </NavLink>
 
             {/* Menu Items */}
-            <NavLink to="/account" onClick={() => setMenuOpen(false)} className="user-dropdown-item">
+            <NavLink to="/account" onClick={() => setMenuOpen(false)} className="user-dropdown-item" style={{ color: 'var(--color-body)', borderRadius: 'var(--radius-sm)' }}>
               <User size={15} style={{ color: 'var(--color-muted)' }} />
               Profile
             </NavLink>
-            <NavLink to="/account" onClick={() => setMenuOpen(false)} className="user-dropdown-item">
+            <NavLink to="/account" onClick={() => setMenuOpen(false)} className="user-dropdown-item" style={{ color: 'var(--color-body)', borderRadius: 'var(--radius-sm)' }}>
               <Settings size={15} style={{ color: 'var(--color-muted)' }} />
               Settings
             </NavLink>
-            <NavLink to="/help" onClick={() => setMenuOpen(false)} className="user-dropdown-item">
+            <NavLink to="/help" onClick={() => setMenuOpen(false)} className="user-dropdown-item" style={{ color: 'var(--color-body)', borderRadius: 'var(--radius-sm)' }}>
               <HelpCircle size={15} style={{ color: 'var(--color-muted)' }} />
               Help
             </NavLink>
@@ -232,7 +278,7 @@ function Sidebar({ onCollapse }: { onCollapse: () => void }) {
                 signOut()
               }}
               className="user-dropdown-item"
-              style={{ color: 'var(--color-error)' }}
+              style={{ color: 'var(--color-error)', borderRadius: 'var(--radius-sm)' }}
             >
               <LogOut size={15} style={{ color: 'var(--color-error)' }} />
               Log out
@@ -245,9 +291,10 @@ function Sidebar({ onCollapse }: { onCollapse: () => void }) {
           className="user-profile-btn"
           aria-expanded={menuOpen}
           aria-label="User menu"
+          style={{ background: 'var(--color-canvas-soft-2)', border: '1px solid var(--color-hairline)', borderRadius: 'var(--radius-sm)', padding: '8px 12px' }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-            <div className="avatar avatar-sm" style={{ backgroundColor: 'var(--color-primary)', color: '#fff', fontSize: 11 }}>
+            <div className="avatar avatar-sm" style={{ backgroundColor: 'var(--color-primary)', color: 'var(--color-on-primary)', fontSize: 11 }}>
               {profile ? getInitials(profile.full_name) : '…'}
             </div>
             <div style={{ minWidth: 0 }}>
@@ -347,6 +394,11 @@ function AppRoutes() {
           <AppShell><ExpenseCreate /></AppShell>
         </ProtectedRoute>
       } />
+      <Route path="/expenses/new" element={
+        <ProtectedRoute>
+          <AppShell><ExpenseCreate /></AppShell>
+        </ProtectedRoute>
+      } />
       <Route path="/groups/:id/expenses/:eid" element={
         <ProtectedRoute>
           <AppShell><ExpenseDetail /></AppShell>
@@ -360,6 +412,16 @@ function AppRoutes() {
       <Route path="/groups/:id/settle" element={
         <ProtectedRoute>
           <AppShell><RecordSettlement /></AppShell>
+        </ProtectedRoute>
+      } />
+      <Route path="/groups/:id/settlements/:sid/confirm" element={
+        <ProtectedRoute>
+          <AppShell><SettlementConfirm /></AppShell>
+        </ProtectedRoute>
+      } />
+      <Route path="/groups/:id/settlement-history" element={
+        <ProtectedRoute>
+          <AppShell><SettlementHistory /></AppShell>
         </ProtectedRoute>
       } />
       <Route path="/account" element={

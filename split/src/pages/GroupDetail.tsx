@@ -1,11 +1,11 @@
 import { useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../supabaseClient'
 import { useAuth } from '../contexts/AuthContext'
-import { formatCurrency, formatDate, getGroupTypeIcon, getInitials, getBalanceClass } from '../utils/formatters'
+import { formatCurrency, getInitials, getBalanceClass } from '../utils/formatters'
 import { computeNetBalances, simplifyDebts } from '../utils/simplification'
-import { Plus, Settings, ArrowLeft, ArrowRight, Users } from 'lucide-react'
+import { Plus, Settings, ArrowLeft, ArrowRight, Users, Clock, History } from 'lucide-react'
 import type { Expense, GroupMember, Settlement } from '../types'
 
 async function fetchGroupData(groupId: string) {
@@ -20,7 +20,7 @@ async function fetchGroupData(groupId: string) {
     supabase.from('settlements')
       .select('*, payer:users!paid_by(id, full_name), payee:users!paid_to(id, full_name)')
       .eq('group_id', groupId)
-      .order('date', { ascending: false }),
+      .order('created_at', { ascending: false }),
   ])
 
   return {
@@ -37,6 +37,12 @@ export function GroupDetail() {
   const navigate = useNavigate()
   const [tab, setTab] = useState<'expenses' | 'balances'>('expenses')
   const [simplifyMode, setSimplifyMode] = useState(true)
+
+  // Use URL search params to deep-link to balances tab
+  const [searchParams] = useSearchParams()
+  const tabParam = searchParams.get('tab')
+  const [tabInit] = useState(() => (tabParam === 'balances' ? 'balances' : 'expenses') as 'expenses' | 'balances')
+  const activeTab = tabParam === 'balances' ? 'balances' : tab === 'balances' ? 'balances' : tabInit === 'balances' ? 'balances' : tab
 
   const { data, isLoading } = useQuery({
     queryKey: ['group', id],
@@ -60,6 +66,11 @@ export function GroupDetail() {
     settlements.map((s) => ({ paid_by: s.paid_by, paid_to: s.paid_to, amount: s.amount }))
   )
   const simplified = simplifyDebts(netBalances)
+
+  // Pending confirmations where current user is receiver
+  const pendingForMe = settlements.filter(
+    (s: any) => s.paid_to === user?.id && s.status === 'AWAITING_CONFIRMATION'
+  )
 
   if (isLoading) {
     return (
@@ -86,7 +97,7 @@ export function GroupDetail() {
               <ArrowLeft size={16} />
             </button>
             <div>
-              <p className="caption" style={{ marginBottom: 2 }}>{getGroupTypeIcon(group.group_type)} {group.group_type}</p>
+              <p className="caption" style={{ marginBottom: 2 }}>Group</p>
               <h1 className="display-lg">{group.name}</h1>
             </div>
           </div>
@@ -105,25 +116,30 @@ export function GroupDetail() {
         {/* Tabs */}
         <div className="tab-bar">
           <button
-            className={`tab-btn ${tab === 'expenses' ? 'active' : ''}`}
+            className={`tab-btn ${activeTab === 'expenses' ? 'active' : ''}`}
             onClick={() => setTab('expenses')}
             id="tab-expenses"
           >
             Expenses
           </button>
           <button
-            className={`tab-btn ${tab === 'balances' ? 'active' : ''}`}
+            className={`tab-btn ${activeTab === 'balances' ? 'active' : ''}`}
             onClick={() => setTab('balances')}
             id="tab-balances"
           >
             Balances
+            {pendingForMe.length > 0 && (
+              <span className="notification-badge" style={{ marginLeft: 6 }}>
+                {pendingForMe.length}
+              </span>
+            )}
           </button>
         </div>
       </div>
 
       <div className="page-body">
-        {tab === 'expenses' ? (
-          <ExpensesTab expenses={expenses} groupId={id!} userId={user!.id} />
+        {activeTab === 'expenses' ? (
+          <ExpensesTab expenses={expenses} groupId={id!} userId={user!.id} groupCreatedAt={group.created_at} />
         ) : (
           <BalancesTab
             netBalances={netBalances}
@@ -132,6 +148,7 @@ export function GroupDetail() {
             setSimplifyMode={setSimplifyMode}
             groupId={id!}
             userId={user!.id}
+            pendingForMe={pendingForMe}
           />
         )}
       </div>
@@ -139,7 +156,17 @@ export function GroupDetail() {
   )
 }
 
-function ExpensesTab({ expenses, groupId, userId }: { expenses: Expense[]; groupId: string; userId: string }) {
+function ExpensesTab({
+  expenses,
+  groupId,
+  userId,
+  groupCreatedAt
+}: {
+  expenses: Expense[]
+  groupId: string
+  userId: string
+  groupCreatedAt: string
+}) {
   if (!expenses.length) {
     return (
       <div className="card">
@@ -156,46 +183,111 @@ function ExpensesTab({ expenses, groupId, userId }: { expenses: Expense[]; group
     )
   }
 
+  // Calculate calendar days difference (day_number starts at 1)
+  const getDayNumber = (expenseDate: string) => {
+    const start = new Date(groupCreatedAt.split('T')[0])
+    const current = new Date(expenseDate)
+    const diffTime = current.getTime() - start.getTime()
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+    return Math.max(1, diffDays + 1)
+  }
+
+  // Group expenses by Day Number ascending
+  let maxDay = 1
+  expenses.forEach((e) => {
+    const day = getDayNumber(e.date)
+    if (day > maxDay) maxDay = day
+  })
+
+  const start = new Date(groupCreatedAt.split('T')[0])
+  const grouped: Record<number, { date: string; list: Expense[] }> = {}
+
+  for (let d = 1; d <= maxDay; d++) {
+    const dDate = new Date(start.getTime() + (d - 1) * 24 * 60 * 60 * 1000)
+    grouped[d] = { date: dDate.toISOString().split('T')[0], list: [] }
+  }
+
+  expenses.forEach((e) => {
+    const day = getDayNumber(e.date)
+    if (grouped[day]) {
+      grouped[day].list.push(e)
+    }
+    if (day > 1 && grouped[day - 1]) {
+      if (!grouped[day - 1].list.some(ex => ex.id === e.id)) {
+        grouped[day - 1].list.push(e)
+      }
+    }
+  })
+
+  const sortedDays = Object.keys(grouped)
+    .map(Number)
+    .sort((a, b) => a - b)
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {expenses.map((expense) => {
-        const myShare = (expense.splits || []).find((s: any) => s.user_id === userId)
-        const iAmPayer = expense.paid_by === userId
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      {sortedDays.map((dayNum) => {
+        const { date, list } = grouped[dayNum]
+        const formattedDate = new Date(date).toLocaleDateString('en-IN', {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric'
+        })
 
         return (
-          <Link
-            key={expense.id}
-            to={`/groups/${groupId}/expenses/${expense.id}`}
-            style={{ textDecoration: 'none' }}
-          >
-            <div className="card card-hover" style={{ padding: '14px 20px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p className="title-sm truncate" style={{ marginBottom: 3 }}>{expense.description}</p>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span className="caption">{formatDate(expense.date)}</span>
-                    <span style={{ width: 3, height: 3, borderRadius: '50%', background: 'var(--color-muted-soft)', flexShrink: 0 }} />
-                    <span className="caption">
-                      Paid by {(expense.payer as any)?.full_name || '…'}
-                    </span>
-                  </div>
-                </div>
-                <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                  <p className="mono" style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-ink)', marginBottom: 2 }}>
-                    {formatCurrency(expense.amount)}
-                  </p>
-                  {iAmPayer && myShare ? (
-                    <span style={{ fontSize: 12, color: 'var(--color-success)' }}>you paid</span>
-                  ) : myShare ? (
-                    <span style={{ fontSize: 12, color: 'var(--color-error)' }}>
-                      you owe {formatCurrency((myShare as any).owed_share)}
-                    </span>
-                  ) : null}
-                </div>
-                <ArrowRight size={14} style={{ color: 'var(--color-muted)', flexShrink: 0 }} />
-              </div>
+          <div key={dayNum}>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              paddingBottom: 6,
+              borderBottom: '1px solid var(--color-hairline-soft)',
+              marginBottom: 12
+            }}>
+              <h3 className="title-sm" style={{ margin: 0, fontSize: 13, fontWeight: 700, color: 'var(--color-primary)' }}>
+                Day {dayNum}
+              </h3>
+              <span className="caption" style={{ fontSize: 11 }}>{formattedDate}</span>
             </div>
-          </Link>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {list.map((expense) => {
+                const myShare = (expense.splits || []).find((s: any) => s.user_id === userId)
+                const iAmPayer = expense.paid_by === userId
+
+                return (
+                  <Link
+                    key={expense.id}
+                    to={`/groups/${groupId}/expenses/${expense.id}`}
+                    style={{ textDecoration: 'none' }}
+                  >
+                    <div className="card card-hover" style={{ padding: '14px 20px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p className="title-sm truncate" style={{ marginBottom: 3 }}>{expense.description}</p>
+                          <p className="caption">
+                            Paid by {(expense.payer as any)?.full_name || '…'}
+                          </p>
+                        </div>
+                        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                          <p className="mono" style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-ink)', marginBottom: 2 }}>
+                            {formatCurrency(expense.amount)}
+                          </p>
+                          {iAmPayer && myShare ? (
+                            <span style={{ fontSize: 12, color: 'var(--color-success)' }}>you paid</span>
+                          ) : myShare ? (
+                            <span style={{ fontSize: 12, color: 'var(--color-error)' }}>
+                              you owe {formatCurrency((myShare as any).owed_share)}
+                            </span>
+                          ) : null}
+                        </div>
+                        <ArrowRight size={14} style={{ color: 'var(--color-muted)', flexShrink: 0 }} />
+                      </div>
+                    </div>
+                  </Link>
+                )
+              })}
+            </div>
+          </div>
         )
       })}
     </div>
@@ -203,7 +295,7 @@ function ExpensesTab({ expenses, groupId, userId }: { expenses: Expense[]; group
 }
 
 function BalancesTab({
-  netBalances, simplified, simplifyMode, setSimplifyMode, groupId, userId
+  netBalances, simplified, simplifyMode, setSimplifyMode, groupId, userId, pendingForMe
 }: any) {
   const myBalance = netBalances.find((b: any) => b.userId === userId)
 
@@ -222,6 +314,46 @@ function BalancesTab({
           </span>
         </div>
       )}
+
+      {/* ── Pending confirmations banner ── */}
+      {pendingForMe && pendingForMe.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
+          {pendingForMe.map((s: any) => {
+            const payerName = (s.payer as any)?.full_name || 'Someone'
+            return (
+              <div key={s.id} className="notification-banner" role="alert">
+                <div className="notification-banner-icon">💸</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-ink)', marginBottom: 2 }}>
+                    {payerName} claims to have paid {formatCurrency(s.amount)}
+                  </p>
+                  {s.note && <p className="caption">for "{s.note}"</p>}
+                  {s.claimed_paid_at && (
+                    <div className="timestamp-row" style={{ marginTop: 4 }}>
+                      <Clock size={11} style={{ color: 'var(--color-warning)' }} />
+                      <span>{new Date(s.claimed_paid_at).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' })}</span>
+                    </div>
+                  )}
+                </div>
+                <Link
+                  to={`/groups/${groupId}/settlements/${s.id}/confirm`}
+                  className="btn btn-sm"
+                  style={{ background: 'var(--color-warning)', color: '#fff', border: 'none', flexShrink: 0 }}
+                >
+                  Review
+                </Link>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* History link */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
+        <Link to={`/groups/${groupId}/settlement-history`} className="btn btn-ghost btn-sm">
+          <History size={14} /> Settlement history
+        </Link>
+      </div>
 
       {/* Toggle */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
@@ -274,12 +406,14 @@ function BalancesTab({
                     <span className="mono" style={{ fontWeight: 700, color: 'var(--color-error)' }}>
                       {formatCurrency(tx.amount)}
                     </span>
-                    <Link
-                      to={`/groups/${groupId}/settle?from=${tx.fromUserId}&to=${tx.toUserId}&amount=${tx.amount}`}
-                      className="btn btn-primary btn-sm"
-                    >
-                      Settle
-                    </Link>
+                    {tx.fromUserId === userId && (
+                      <Link
+                        to={`/groups/${groupId}/settle?from=${tx.fromUserId}&to=${tx.toUserId}&amount=${tx.amount}`}
+                        className="btn btn-primary btn-sm"
+                      >
+                        Settle
+                      </Link>
+                    )}
                   </div>
                 </div>
               </div>
