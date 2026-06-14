@@ -424,7 +424,7 @@ export function SettlementConfirm() {
 
         {/* ── Payer view when awaiting ── */}
         {isPayer && status === 'AWAITING_CONFIRMATION' && (
-          <div className="card" style={{ padding: '16px 20px', background: 'var(--color-warning-bg)', border: '1px solid rgba(217,119,6,0.2)' }}>
+          <div className="card" style={{ padding: '16px 20px', borderLeft: '3px solid var(--color-warning)' }}>
             <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-warning)', marginBottom: 4 }}>⏳ Awaiting confirmation</p>
             <p className="caption">{payee?.full_name} needs to confirm receipt of your payment.</p>
           </div>
