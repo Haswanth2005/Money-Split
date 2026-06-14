@@ -50,18 +50,15 @@ export const parseCSV = async (
     });
   });
 };
-
 const processRows = (
   rawRows: Record<string, string>[],
   groupMembers: GroupMember[],
   defaultCurrency: string
 ): ParsedCSVRow[] => {
   const parsedRows: ParsedCSVRow[] = [];
+  const seenMap = new Map<string, string>();
 
-  // Track seen descriptions to find duplicates
-  const seenMap = new Map<string, string>(); // key -> row id
-
-  rawRows.forEach((row, index) => {
+  rawRows.forEach((row) => {
     const issues: CSVRowIssue[] = [];
     const id = generateId();
 
@@ -208,7 +205,7 @@ const processRows = (
 
     // 10. Duplicates
     let isDup = false;
-    for (const [key, id_val] of seenMap.entries()) {
+    for (const key of seenMap.keys()) {
       const [seenDate, seenDesc, seenAmt] = key.split('|');
       if (seenDate === parsedDate) {
         // Same date. Check if amounts match exactly, OR if descriptions are very similar
