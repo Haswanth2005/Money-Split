@@ -134,19 +134,36 @@ export function RecordSettlement() {
 
   const uploadScreenshot = async (): Promise<string | null> => {
     if (!screenshotFile) return null
+
+    // Client-side validation
+    const MAX_MB = 5
+    if (screenshotFile.size > MAX_MB * 1024 * 1024) {
+      showToast(`Screenshot must be under ${MAX_MB}MB`, 'error')
+      return null
+    }
+    if (!screenshotFile.type.startsWith('image/')) {
+      showToast('Only image files are allowed', 'error')
+      return null
+    }
+
     setUploadingScreenshot(true)
-    const ext  = screenshotFile.name.split('.').pop()
+    const ext  = screenshotFile.name.split('.').pop() || 'jpg'
     const path = `${user?.id}/${Date.now()}.${ext}`
-    const { error } = await supabase.storage
+
+    const { error: uploadError } = await supabase.storage
       .from('settlement-screenshots')
-      .upload(path, screenshotFile, { upsert: true })
-    if (error) {
-      showToast('Screenshot upload failed: ' + error.message, 'error')
+      .upload(path, screenshotFile, { upsert: true, contentType: screenshotFile.type })
+
+    if (uploadError) {
+      console.error('[Screenshot upload error]', uploadError)
+      showToast('Screenshot upload failed: ' + uploadError.message, 'error')
       setUploadingScreenshot(false)
       return null
     }
+
     const { data } = supabase.storage.from('settlement-screenshots').getPublicUrl(path)
     setUploadingScreenshot(false)
+    console.log('[Screenshot uploaded]', data.publicUrl)
     return data.publicUrl
   }
 
