@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { supabase } from '../supabaseClient'
-import { Wallet, Eye, EyeOff } from 'lucide-react'
+import { Wallet, Eye, EyeOff, FlaskConical } from 'lucide-react'
 
 const schema = z.object({
   email: z.string().email('Enter a valid email'),
@@ -13,14 +13,22 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>
 
+const TEST_EMAIL = 'haswanthgoud@gmail.com'
+const TEST_PASSWORD = 'Haswanth@123'
+
 export function Login() {
   const navigate = useNavigate()
   const [showPw, setShowPw] = useState(false)
   const [serverError, setServerError] = useState('')
 
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormValues>({
+  const { register, handleSubmit, setValue, formState: { errors, isSubmitting } } = useForm<FormValues>({
     resolver: zodResolver(schema),
   })
+
+  const fillTestCredentials = () => {
+    setValue('email', TEST_EMAIL, { shouldValidate: true })
+    setValue('password', TEST_PASSWORD, { shouldValidate: true })
+  }
 
   const onSubmit = async (values: FormValues) => {
     setServerError('')
@@ -139,6 +147,52 @@ export function Login() {
             Sign up
           </Link>
         </p>
+
+        {/* Test Credentials */}
+        <div style={{
+          marginTop: 20,
+          padding: '14px 16px',
+          borderRadius: 'var(--radius-md)',
+          background: 'var(--color-surface)',
+          border: '1px dashed var(--color-border)',
+          fontSize: 13,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, color: 'var(--color-muted)' }}>
+            <FlaskConical size={14} />
+            <span style={{ fontWeight: 600, letterSpacing: '0.02em' }}>TEST CREDENTIALS</span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, color: 'var(--color-ink)', fontFamily: 'monospace' }}>
+            <span>📧 {TEST_EMAIL}</span>
+            <span>🔑 {TEST_PASSWORD}</span>
+          </div>
+          <button
+            type="button"
+            onClick={fillTestCredentials}
+            style={{
+              marginTop: 10,
+              width: '100%',
+              padding: '7px 0',
+              borderRadius: 'var(--radius-sm)',
+              border: '1px solid var(--color-primary)',
+              background: 'transparent',
+              color: 'var(--color-primary)',
+              fontWeight: 600,
+              fontSize: 13,
+              cursor: 'pointer',
+              transition: 'background 0.15s, color 0.15s',
+            }}
+            onMouseEnter={e => {
+              (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-primary)'
+              ;(e.currentTarget as HTMLButtonElement).style.color = '#fff'
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLButtonElement).style.background = 'transparent'
+              ;(e.currentTarget as HTMLButtonElement).style.color = 'var(--color-primary)'
+            }}
+          >
+            Use test credentials
+          </button>
+        </div>
       </div>
     </div>
   )
